@@ -1,0 +1,3362 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antigravity Space Flight Simulator</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Matter.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-panel: rgba(13, 19, 33, 0.75);
+      --bg-panel-solid: #0d1321;
+      --primary: #00f0ff;
+      --primary-dim: rgba(0, 240, 255, 0.15);
+      --secondary: #ff6b00;
+      --secondary-dim: rgba(255, 107, 0, 0.15);
+      --accent: #bd00ff;
+      --text: #e2e8f0;
+      --text-muted: #64748b;
+      --border: rgba(0, 240, 255, 0.25);
+      --border-focus: rgba(0, 240, 255, 0.7);
+      --grid-line: rgba(0, 240, 255, 0.05);
+      --font-main: 'Outfit', sans-serif;
+      --font-mono: 'Share Tech Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text);
+      font-family: var(--font-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* SF Neon Background */
+    .space-background {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -2;
+      background: radial-gradient(circle at center, #0c152b 0%, #05070a 100%);
+      overflow: hidden;
+    }
+
+    .space-background::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 240, 255, 0.08) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      z-index: 10;
+      background-size: 100% 4px, 3px 100%;
+      pointer-events: none;
+    }
+
+    .star {
+      position: absolute;
+      background-color: #fff;
+      border-radius: 50%;
+      animation: twinkle 3s infinite ease-in-out;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* Screen Setup */
+    .screen {
+      display: none;
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .screen.active {
+      display: flex;
+    }
+
+    .glass-panel {
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(0, 240, 255, 0.05);
+      padding: 20px;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .glass-panel:hover {
+      border-color: rgba(0, 240, 255, 0.4);
+      box-shadow: 0 12px 40px 0 rgba(0, 240, 255, 0.1);
+    }
+
+    /* BUTTONS */
+    .btn {
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      font-family: var(--font-main);
+      font-weight: 600;
+      text-transform: uppercase;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      letter-spacing: 1px;
+      transition: all 0.2s ease;
+      box-shadow: 0 0 8px rgba(0, 240, 255, 0.1);
+    }
+
+    .btn:hover {
+      background: var(--primary);
+      color: var(--bg-dark);
+      box-shadow: 0 0 18px rgba(0, 240, 255, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      border-color: var(--secondary);
+      color: var(--secondary);
+      background: rgba(255, 107, 0, 0.1);
+    }
+
+    .btn-secondary:hover {
+      background: var(--secondary);
+      color: var(--bg-dark);
+      box-shadow: 0 0 18px rgba(255, 107, 0, 0.4);
+    }
+
+    .btn-danger {
+      border-color: #ff3838;
+      color: #ff3838;
+      background: rgba(255, 56, 56, 0.1);
+    }
+
+    .btn-danger:hover {
+      background: #ff3838;
+      color: white;
+      box-shadow: 0 0 18px rgba(255, 56, 56, 0.4);
+    }
+
+    /* -------------------------------------------------------------
+       ASSEMBLY SCREEN
+    ------------------------------------------------------------- */
+    #assembly-screen {
+      justify-content: space-between;
+      padding: 20px;
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    .side-panel {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      z-index: 5;
+    }
+
+    .panel-header {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--primary);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      letter-spacing: 1px;
+    }
+
+    .part-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+      flex-grow: 1;
+      padding-right: 5px;
+    }
+
+    .part-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .part-list::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    .part-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 12px;
+      cursor: grab;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .part-item:hover {
+      background: rgba(0, 240, 255, 0.05);
+      border-color: var(--primary);
+      transform: scale(1.02);
+    }
+
+    .part-item-icon {
+      width: 50px;
+      height: 50px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: 1px dashed rgba(0, 240, 255, 0.3);
+      border-radius: 6px;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .part-info {
+      flex-grow: 1;
+    }
+
+    .part-title {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    .part-desc {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .assembly-area {
+      flex-grow: 1;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1;
+    }
+
+    .canvas-container {
+      position: relative;
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.1);
+      background: radial-gradient(circle at center, rgba(13, 19, 33, 0.9) 0%, rgba(7, 9, 14, 0.95) 100%);
+      overflow: hidden;
+    }
+
+    #assembly-canvas {
+      display: block;
+    }
+
+    .canvas-overlay-text {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      pointer-events: none;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      opacity: 0.8;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .customizer-box {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .color-picker-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .color-picker-preview {
+      width: 38px;
+      height: 38px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      box-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
+
+    #part-color-picker {
+      opacity: 0;
+      position: absolute;
+      width: 0; height: 0;
+      pointer-events: none;
+    }
+
+    .rocket-stats {
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+    }
+
+    .stat-val {
+      font-family: var(--font-mono);
+      color: var(--primary);
+    }
+
+    .leaderboard-panel {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .leaderboard-list {
+      list-style: none;
+      overflow-y: auto;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-right: 5px;
+    }
+
+    .leaderboard-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0, 240, 255, 0.02);
+      border: 1px solid rgba(0, 240, 255, 0.1);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .leaderboard-item:hover {
+      background: rgba(0, 240, 255, 0.08);
+      border-color: var(--primary);
+      transform: translateX(4px);
+    }
+
+    .leaderboard-rank {
+      font-weight: 800;
+      color: var(--secondary);
+      margin-right: 8px;
+    }
+
+    .leaderboard-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .leaderboard-val {
+      font-family: var(--font-mono);
+      color: var(--primary);
+      font-weight: bold;
+    }
+
+    /* -------------------------------------------------------------
+       FLIGHT SCREEN
+    ------------------------------------------------------------- */
+    #flight-screen {
+      position: relative;
+    }
+
+    #flight-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    .flight-hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+      padding: 25px;
+      display: grid;
+      grid-template-columns: 320px 1fr 120px;
+      grid-template-rows: auto 1fr;
+      grid-template-areas: 
+        "telemetry warnings throttle"
+        "stagedisplay . throttle";
+      gap: 20px;
+    }
+
+    .pointer-active {
+      pointer-events: auto;
+    }
+
+    #hud-telemetry {
+      grid-area: telemetry;
+      align-self: start;
+    }
+
+    .telemetry-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .telemetry-item:last-child {
+      border-bottom: none;
+    }
+
+    .telemetry-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .telemetry-value {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .hud-warnings {
+      grid-area: warnings;
+      justify-self: center;
+      align-self: start;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .hud-alert {
+      background: rgba(255, 56, 56, 0.2);
+      border: 1px solid #ff3838;
+      border-radius: 8px;
+      padding: 10px 20px;
+      color: #ff9e9e;
+      font-weight: 600;
+      font-size: 0.9rem;
+      animation: pulseAlert 1.5s infinite alternate;
+      backdrop-filter: blur(8px);
+    }
+
+    .hud-control-info {
+      background: rgba(13, 19, 33, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 15px;
+      color: var(--primary);
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      pointer-events: auto;
+    }
+
+    #hud-stage-display {
+      grid-area: stagedisplay;
+      align-self: end;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 250px;
+    }
+
+    .stage-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    .stage-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid var(--primary);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--primary);
+    }
+
+    .stage-progress {
+      flex-grow: 1;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .stage-progress-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 100%;
+      transition: width 0.1s linear;
+    }
+
+    .hud-throttle {
+      grid-area: throttle;
+      justify-self: center;
+      align-self: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+      height: 380px;
+      padding: 20px 10px;
+    }
+
+    .throttle-container {
+      position: relative;
+      height: 250px;
+      width: 16px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .throttle-fill {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 0%;
+      background: linear-gradient(to top, var(--primary), var(--secondary));
+      box-shadow: 0 0 15px var(--primary-dim);
+      transition: height 0.05s linear;
+    }
+
+    .throttle-input-slider {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: ns-resize;
+    }
+
+    .throttle-txt {
+      font-family: var(--font-mono);
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .throttle-label-txt {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      writing-mode: vertical-rl;
+      letter-spacing: 1px;
+    }
+
+    .hud-controls-overlay {
+      position: absolute;
+      bottom: 25px;
+      right: 25px;
+      display: flex;
+      gap: 15px;
+      pointer-events: auto;
+      z-index: 3;
+    }
+
+    /* -------------------------------------------------------------
+       MODALS
+    ------------------------------------------------------------- */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(4, 7, 12, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-content {
+      width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+      animation: modalSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalSlideIn {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.2rem;
+    }
+
+    .blueprint-canvas-wrapper {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: radial-gradient(circle at center, rgba(13,19,33,0.95), rgba(7,9,14,0.98));
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 10px;
+      position: relative;
+    }
+
+    #blueprint-canvas {
+      display: block;
+      background-size: 20px 20px;
+      background-image: 
+        linear-gradient(to right, rgba(0, 240, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
+    }
+
+    #record-modal .modal-content {
+      width: 420px;
+      text-align: center;
+    }
+
+    .achievement-icon {
+      font-size: 4rem;
+      color: var(--secondary);
+      margin: 10px 0;
+      animation: float 2s infinite ease-in-out;
+    }
+
+    .record-stat-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 15px;
+      margin: 15px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="space-background" id="star-layer"></div>
+
+  <!-- -------------------------------------------------------------
+     SCREEN 1: ASSEMBLY SCREEN
+  ------------------------------------------------------------- -->
+  <div class="screen active" id="assembly-screen">
+    <!-- LEFT SIDE: Parts Drawer -->
+    <div class="side-panel glass-panel">
+      <div class="panel-header">
+        <span><i class="fa-solid fa-screwdriver-wrench"></i> 부품 보관소</span>
+      </div>
+      <p style="font-size:0.72rem; color:var(--text-muted); margin-top:-10px; margin-bottom: 5px;">격자판으로 드래그하거나 클릭하여 생성</p>
+      <div class="part-list" id="parts-drawer">
+        <!-- Command Pod -->
+        <div class="part-item" draggable="true" data-type="pod">
+          <div class="part-item-icon">
+            <svg width="30" height="30" viewBox="0 0 40 40">
+              <path d="M 5,35 L 10,10 L 30,10 L 35,35 Z" fill="#64748b" stroke="#00f0ff" stroke-width="2"/>
+              <ellipse cx="20" cy="22" rx="6" ry="6" fill="#1e293b" stroke="#00f0ff" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="part-info">
+            <div class="part-title">사령선 (Pod)</div>
+            <div class="part-desc">우주선 지휘 제어부 (1x1 ~ 3x2)</div>
+          </div>
+        </div>
+
+        <!-- Fuel Tank -->
+        <div class="part-item" draggable="true" data-type="tank">
+          <div class="part-item-icon">
+            <svg width="25" height="36" viewBox="0 0 40 60">
+              <rect x="5" y="5" width="30" height="50" rx="3" fill="#94a3b8" stroke="#00f0ff" stroke-width="2"/>
+              <line x1="5" y1="20" x2="35" y2="20" stroke="#00f0ff" stroke-width="1.5"/>
+              <line x1="5" y1="40" x2="35" y2="40" stroke="#00f0ff" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="part-info">
+            <div class="part-title">연료 탱크 (Fuel Tank)</div>
+            <div class="part-desc">연료 공급용 (1x1 ~ 4x6)</div>
+          </div>
+        </div>
+
+        <!-- Engine -->
+        <div class="part-item" draggable="true" data-type="engine">
+          <div class="part-item-icon">
+            <svg width="25" height="25" viewBox="0 0 40 30">
+              <path d="M 5,2 L 35,2 L 30,22 L 10,22 Z" fill="#475569" stroke="#00f0ff" stroke-width="2"/>
+              <polygon points="12,22 28,22 32,28 8,28" fill="#334155" stroke="#ff6b00" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="part-info">
+            <div class="part-title">로켓 엔진 (Engine)</div>
+            <div class="part-desc">추진력 발생 장치 (1x1 ~ 3x2)</div>
+          </div>
+        </div>
+
+        <!-- Separator -->
+        <div class="part-item" draggable="true" data-type="separator">
+          <div class="part-item-icon">
+            <svg width="30" height="15" viewBox="0 0 40 16">
+              <rect x="2" y="2" width="36" height="12" fill="#1e293b" stroke="#e11d48" stroke-width="2" rx="2"/>
+              <line x1="10" y1="8" x2="30" y2="8" stroke="#e11d48" stroke-dasharray="3 3" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="part-info">
+            <div class="part-title">분리 장치 (Separator)</div>
+            <div class="part-desc">스테이지 단 분리 커플러 (1x1 ~ 4x1)</div>
+          </div>
+        </div>
+
+        <!-- RCS Thruster -->
+        <div class="part-item" draggable="true" data-type="rcs">
+          <div class="part-item-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <circle cx="10" cy="10" r="4" fill="#334155" stroke="#00f0ff" stroke-width="2"/>
+              <line x1="10" y1="2" x2="10" y2="18" stroke="#00f0ff" stroke-width="1.5"/>
+              <line x1="2" y1="10" x2="18" y2="10" stroke="#00f0ff" stroke-width="1.5"/>
+            </svg>
+          </div>
+          <div class="part-info">
+            <div class="part-title">RCS 자세 제어기</div>
+            <div class="part-desc">우주 공간 미세 회전용 (1x1)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Grid Sandbox -->
+    <div class="assembly-area">
+      <div class="canvas-container" id="editor-container">
+        <div class="canvas-overlay-text">
+          <span>SFS Sandbox Board v1.3</span>
+          <span>격자 스냅 (40px)</span>
+          <span style="color:var(--text-muted)">부품 드래그: 이동 | 우클릭: 삭제 | R키: 회전</span>
+          <span style="color:#00f0ff; font-weight:800;">파란색 테두리 핸들 드래그: 부품 크기(Resize) 변경</span>
+        </div>
+        <canvas id="assembly-canvas" width="480" height="640"></canvas>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE: Launch Panel & Customized Options -->
+    <div class="side-panel glass-panel">
+      <div class="panel-header">
+        <span><i class="fa-solid fa-sliders"></i> 설정 & 발사</span>
+      </div>
+
+      <div class="customizer-box">
+        <div class="control-group">
+          <label class="control-label">부품 색상 커스터마이즈</label>
+          <div class="color-picker-wrapper">
+            <div class="color-picker-preview" id="color-preview" style="background-color: #64748b;"></div>
+            <input type="color" id="part-color-picker" value="#64748b">
+            <span id="color-hex-text" style="font-family: var(--font-mono); font-size: 0.9rem;">#64748B</span>
+          </div>
+        </div>
+
+        <div class="rocket-stats">
+          <div class="panel-header" style="font-size: 0.95rem; margin-top: 5px; margin-bottom: 5px; border-bottom: 1px solid rgba(0, 240, 255, 0.15)">기체 실시간 사양</div>
+          <div class="stat-row">
+            <span>총 중량 (Total Mass):</span>
+            <span class="stat-val" id="stat-mass">0.0 t</span>
+          </div>
+          <div class="stat-row">
+            <span>총 추력 (Total Thrust):</span>
+            <span class="stat-val" id="stat-thrust">0.0 kN</span>
+          </div>
+          <div class="stat-row">
+            <span>추력 대 중량비 (TWR):</span>
+            <span class="stat-val" id="stat-twr">0.00</span>
+          </div>
+          <div class="stat-row">
+            <span>연결 상태:</span>
+            <span class="stat-val" id="stat-connected" style="color: #ff3838;">사령선 부재</span>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary" id="btn-clear-ship" style="width: 100%; margin-top: 5px;">
+          <i class="fa-solid fa-trash-can"></i> 전체 초기화
+        </button>
+
+        <button class="btn" id="btn-launch" style="width: 100%; height: 50px; font-size: 1.1rem; margin-top: 10px;">
+          <i class="fa-solid fa-rocket"></i> Launch Mission
+        </button>
+      </div>
+
+      <div class="leaderboard-panel">
+        <div class="panel-header" style="font-size: 0.95rem; margin-bottom: 10px;">
+          <span><i class="fa-solid fa-ranking-star"></i> 실시간 랭킹 (Top 10)</span>
+        </div>
+        <ul class="leaderboard-list" id="rank-list">
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- -------------------------------------------------------------
+     SCREEN 2: FLIGHT SIMULATION SCREEN
+  ------------------------------------------------------------- -->
+  <div class="screen" id="flight-screen">
+    <canvas id="flight-canvas"></canvas>
+
+    <div class="flight-hud">
+      <!-- Telemetry (Left Top) -->
+      <div class="glass-panel pointer-active" id="hud-telemetry">
+        <div class="panel-header" style="font-size: 1rem; border-bottom-color: rgba(0, 240, 255, 0.15); margin-bottom: 10px;">
+          <span><i class="fa-solid fa-gauge-high"></i> 계기판</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">고도 (Altitude)</span>
+          <span class="telemetry-value" id="hud-altitude">0.0 km</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">총 속도 (Velocity)</span>
+          <span class="telemetry-value" id="hud-velocity">0.0 m/s</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">횡 속도 (Horiz. Vel)</span>
+          <span class="telemetry-value" id="hud-vhoriz">0.0 m/s</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">종 속도 (Vert. Vel)</span>
+          <span class="telemetry-value" id="hud-vvert">0.0 m/s</span>
+        </div>
+        <div class="telemetry-item">
+          <span class="telemetry-label">남은 연료 (Total Fuel)</span>
+          <span class="telemetry-value" id="hud-fuel">0 %</span>
+        </div>
+      </div>
+
+      <!-- Center Warning and Hotkey HUD -->
+      <div class="hud-warnings" id="hud-warnings-box">
+        <div class="hud-control-info">
+          <span><i class="fa-solid fa-keyboard"></i> 자세 제어: A/D 또는 ←/→ (RCS 가스 분사)</span>
+          <span>엔진 출력: W/S 또는 ↑/↓ (마우스 휠 조절)</span>
+          <span style="color:#00f0ff; font-weight:bold;"><i class="fa-solid fa-play"></i> 단 분리 및 점화: Space (점화 후 비행 시작!)</span>
+        </div>
+      </div>
+
+      <!-- Engine Output Control Slider -->
+      <div class="glass-panel pointer-active hud-throttle">
+        <div class="throttle-label-txt">Thrust Throttle</div>
+        <div class="throttle-container">
+          <div class="throttle-fill" id="throttle-bar"></div>
+          <input type="range" class="throttle-input-slider" id="throttle-range" min="0" max="100" value="0" orient="vertical">
+        </div>
+        <div class="throttle-txt" id="throttle-text">0%</div>
+      </div>
+
+      <!-- Stage Information Display -->
+      <div class="glass-panel pointer-active" id="hud-stage-display">
+        <div class="panel-header" style="font-size: 0.82rem; border-bottom-color: rgba(0, 240, 255, 0.15); margin-bottom: 5px; padding-bottom: 5px;">
+          <span>Staged Sequencer HUD</span>
+        </div>
+        <div class="stage-item" style="flex-direction:column; align-items:flex-start; gap:3px;">
+          <span style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase;">Next Stage:</span>
+          <span id="next-stage-name" style="font-family:var(--font-mono); color:var(--primary); font-weight:800; font-size:0.9rem;">ENGINE IGNITION</span>
+        </div>
+        <div class="stage-item" style="margin-top: 5px;">
+          <div class="stage-icon"><i class="fa-solid fa-gas-pump"></i></div>
+          <div class="stage-progress">
+            <div class="stage-progress-fill" id="active-stage-fuel"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Options -->
+      <div class="hud-controls-overlay">
+        <button class="btn btn-secondary" id="btn-camera-toggle">
+          <i class="fa-solid fa-map-location-dot"></i> 지도 모드 [M]
+        </button>
+        <button class="btn btn-danger" id="btn-abort-flight">
+          <i class="fa-solid fa-right-from-bracket"></i> 비행 중단 [Esc]
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP MODALS -->
+  <div class="modal-backdrop" id="blueprint-modal">
+    <div class="glass-panel modal-content">
+      <button class="modal-close" id="btn-close-blueprint"><i class="fa-solid fa-xmark"></i></button>
+      <div class="panel-header">
+        <span><i class="fa-solid fa-blueprint"></i> 우주선 설계 청사진</span>
+      </div>
+      <div style="font-size: 0.9rem; margin-top:-10px;">
+        설계자: <span id="blueprint-designer" style="color:var(--primary); font-weight:800;">-</span>
+      </div>
+      <div class="blueprint-canvas-wrapper">
+        <canvas id="blueprint-canvas" width="300" height="400"></canvas>
+      </div>
+      <div class="record-stat-box" style="margin: 0; font-size: 0.85rem;">
+        <div class="stat-row">
+          <span>최고 도달 고도:</span>
+          <span class="stat-val" id="blueprint-height" style="font-size: 1.1rem; color:var(--secondary)">0.0 km</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="record-modal">
+    <div class="glass-panel modal-content">
+      <div class="achievement-icon" id="record-achievement-icon"><i class="fa-solid fa-trophy"></i></div>
+      <div class="panel-header" style="justify-content: center; font-size: 1.4rem;">
+        <span id="record-title">비행 임무 종료</span>
+      </div>
+      <p id="record-desc" style="font-size: 0.95rem; color: var(--text-muted);"></p>
+      
+      <div class="record-stat-box">
+        <div class="stat-row">
+          <span>최고 도달 고도:</span>
+          <span class="stat-val" id="record-final-altitude" style="font-size: 1.3rem; color: var(--primary);">0.0 km</span>
+        </div>
+      </div>
+
+      <div class="control-group" style="text-align: left;">
+        <label class="control-label">조종사 닉네임 등록</label>
+        <input type="text" class="input-field" id="pilot-nickname" placeholder="닉네임 입력 (최대 8자)" maxlength="8">
+      </div>
+
+      <div style="display: flex; gap: 15px; margin-top: 15px;">
+        <button class="btn btn-secondary" id="btn-cancel-record" style="flex: 1;">그냥 종료</button>
+        <button class="btn" id="btn-submit-record" style="flex: 1;"><i class="fa-solid fa-floppy-disk"></i> 기록 등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- -------------------------------------------------------------
+     SCRIPTS
+  ------------------------------------------------------------- -->
+  <script>
+    // Starfield animation
+    function generateStars() {
+      const starLayer = document.getElementById('star-layer');
+      const count = 120;
+      for (let i = 0; i < count; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.width = Math.random() * 2 + 1 + 'px';
+        star.style.height = star.style.width;
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.animationDelay = Math.random() * 3 + 's';
+        starLayer.appendChild(star);
+      }
+    }
+    generateStars();
+
+    // -------------------------------------------------------------
+    // PART SPECIFICATIONS
+    // -------------------------------------------------------------
+    const PARTS_CATALOG = {
+      pod: {
+        type: 'pod',
+        minW: 1, maxW: 3,
+        minH: 1, maxH: 2,
+        massPerGrid: 3.0,
+        color: '#475569',
+        name: '사령선'
+      },
+      tank: {
+        type: 'tank',
+        minW: 1, maxW: 4,
+        minH: 1, maxH: 6,
+        massPerGrid: 2.5, 
+        dryMassPerGrid: 0.5,
+        fuelMassPerGrid: 2.0,
+        maxFuelPerGrid: 100,
+        color: '#94a3b8',
+        name: '연료 탱크'
+      },
+      engine: {
+        type: 'engine',
+        minW: 1, maxW: 3,
+        minH: 1, maxH: 2,
+        massPerGrid: 2.0,
+        thrustPerCol: 0.08, 
+        color: '#334155',
+        name: '로켓 엔진'
+      },
+      separator: {
+        type: 'separator',
+        minW: 1, maxW: 4,
+        minH: 1, maxH: 1, 
+        massPerGrid: 0.8,
+        color: '#1e293b',
+        name: '분리 장치'
+      },
+      rcs: {
+        type: 'rcs',
+        minW: 1, maxW: 1,
+        minH: 1, maxH: 1, 
+        massPerGrid: 0.3,
+        thrustPerCol: 0.005,
+        color: '#64748b',
+        name: 'RCS 자세 제어기'
+      }
+    };
+
+    const AppState = {
+      mode: 'ASSEMBLY',
+      shipParts: [],    
+      selectedPartId: null,
+      leaderboard: [],
+      flight: {
+        thrustThrottle: 0,
+        stageIndex: 0,
+        maxAltitude: 0,
+        isEnded: false,
+        endReason: '',
+        hasLeftGround: false, // Prevent immediate landing end upon launch
+        isEngineIgnited: false // Must hit Space to ignite engine
+      }
+    };
+
+    function loadLeaderboard() {
+      const data = localStorage.getItem('antigravity_sfs_leaderboard');
+      if (data) {
+        AppState.leaderboard = JSON.parse(data);
+      } else {
+        AppState.leaderboard = [
+          { nickname: 'Gagarin', altitude: 238.4, shipParts: [
+            { type: 'pod', gridX: 5, gridY: 4, gridW: 2, gridH: 1, angle: 0, color: '#00f0ff', id: '1' },
+            { type: 'separator', gridX: 5, gridY: 5, gridW: 2, gridH: 1, angle: 0, color: '#e11d48', id: '2' },
+            { type: 'tank', gridX: 5, gridY: 6, gridW: 2, gridH: 3, angle: 0, color: '#3b82f6', id: '3' },
+            { type: 'engine', gridX: 5, gridY: 9, gridW: 2, gridH: 1, angle: 0, color: '#ff6b00', id: '4' }
+          ]},
+          { nickname: 'Aldrin', altitude: 94.2, shipParts: [
+            { type: 'pod', gridX: 5, gridY: 5, gridW: 2, gridH: 1, angle: 0, color: '#ffffff', id: 'a1' },
+            { type: 'tank', gridX: 5, gridY: 6, gridW: 2, gridH: 2, angle: 0, color: '#64748b', id: 'a2' },
+            { type: 'engine', gridX: 5, gridY: 8, gridW: 2, gridH: 1, angle: 0, color: '#ff6b00', id: 'a3' }
+          ]}
+        ];
+        saveLeaderboard();
+      }
+      renderLeaderboardUI();
+    }
+
+    function saveLeaderboard() {
+      localStorage.setItem('antigravity_sfs_leaderboard', JSON.stringify(AppState.leaderboard));
+    }
+
+    function renderLeaderboardUI() {
+      const list = document.getElementById('rank-list');
+      list.innerHTML = '';
+      AppState.leaderboard.sort((a,b) => b.altitude - a.altitude);
+      AppState.leaderboard.slice(0, 10).forEach((entry, idx) => {
+        const item = document.createElement('li');
+        item.className = 'leaderboard-item';
+        item.innerHTML = `
+          <div>
+            <span class="leaderboard-rank">#${idx + 1}</span>
+            <span class="leaderboard-name">${entry.nickname}</span>
+          </div>
+          <span class="leaderboard-val">${entry.altitude.toFixed(1)} km</span>
+        `;
+        item.addEventListener('click', () => {
+          showBlueprintModal(entry.nickname, entry.altitude, entry.shipParts);
+        });
+        list.appendChild(item);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // ASSEMBLY EDITOR SYSTEM (Resize handle mechanics)
+    // -------------------------------------------------------------
+    const editorCanvas = document.getElementById('assembly-canvas');
+    const editorCtx = editorCanvas.getContext('2d');
+    const GRID_SIZE = 40;
+    const LAUNCH_HEIGHT_OFFSET = 120; // Height of the rocket spawn position above the ground
+    const GRID_COLS = editorCanvas.width / GRID_SIZE; // 12 cols
+    const GRID_ROWS = editorCanvas.height / GRID_SIZE; // 16 rows
+
+    let activePartType = null;
+    let ghostPart = null;
+    let selectedPartIndex = -1;
+
+    let resizeMode = null; 
+    let resizeStartSize = { gridW: 1, gridH: 1 };
+    let resizeStartGrid = { x: 0, y: 0 };
+    let preResizeState = null; 
+    const HANDLE_SIZE = 8;
+
+    // Fixed HTML5 Drag and Drop Handlers
+    const drawer = document.getElementById('parts-drawer');
+    drawer.addEventListener('dragstart', (e) => {
+      // Find closest part-item
+      const item = e.target.closest('.part-item');
+      if (item) {
+        activePartType = item.getAttribute('data-type');
+        e.dataTransfer.setData('text/plain', activePartType);
+      }
+    });
+
+    const editorContainer = document.getElementById('editor-container');
+    
+    editorContainer.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      const rect = editorCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const gridX = Math.floor(mouseX / GRID_SIZE);
+      const gridY = Math.floor(mouseY / GRID_SIZE);
+
+      if (activePartType && PARTS_CATALOG[activePartType]) {
+        const def = PARTS_CATALOG[activePartType];
+        const targetX = Math.max(0, Math.min(GRID_COLS - def.minW, gridX));
+        const targetY = Math.max(0, Math.min(GRID_ROWS - def.minH, gridY));
+
+        ghostPart = {
+          type: activePartType,
+          gridX: targetX,
+          gridY: targetY,
+          gridW: def.minW,
+          gridH: def.minH,
+          angle: 0,
+          color: def.color
+        };
+      }
+      drawEditor();
+    });
+
+    editorContainer.addEventListener('dragleave', () => {
+      ghostPart = null;
+      drawEditor();
+    });
+
+    editorContainer.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const type = e.dataTransfer.getData('text/plain') || activePartType;
+      if (!type || !PARTS_CATALOG[type]) return;
+
+      const rect = editorCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const gridX = Math.floor(mouseX / GRID_SIZE);
+      const gridY = Math.floor(mouseY / GRID_SIZE);
+
+      const def = PARTS_CATALOG[type];
+      const targetX = Math.max(0, Math.min(GRID_COLS - def.minW, gridX));
+      const targetY = Math.max(0, Math.min(GRID_ROWS - def.minH, gridY));
+
+      addPart(type, targetX, targetY);
+      ghostPart = null;
+      activePartType = null;
+      drawEditor();
+    });
+
+    function getResizeHandleTypeAt(mouseX, mouseY) {
+      if (selectedPartIndex === -1) return null;
+      const part = AppState.shipParts[selectedPartIndex];
+      const bounds = getPartGridBounds(part);
+
+      const x1 = bounds.minX * GRID_SIZE;
+      const x2 = (bounds.maxX + 1) * GRID_SIZE;
+      const y1 = bounds.minY * GRID_SIZE;
+      const y2 = (bounds.maxY + 1) * GRID_SIZE;
+
+      if (mouseX >= x2 - HANDLE_SIZE && mouseX <= x2 + HANDLE_SIZE &&
+          mouseY >= y2 - HANDLE_SIZE && mouseY <= y2 + HANDLE_SIZE) {
+        return 'SE';
+      }
+      if (mouseX >= x2 - HANDLE_SIZE && mouseX <= x2 + HANDLE_SIZE &&
+          mouseY >= y1 && mouseY <= y2) {
+        return 'E';
+      }
+      if (mouseX >= x1 && mouseX <= x2 &&
+          mouseY >= y2 - HANDLE_SIZE && mouseY <= y2 + HANDLE_SIZE) {
+        return 'S';
+      }
+      return null;
+    }
+
+    let isDraggingPlacedPart = false;
+    let dragStartGridOffset = { x: 0, y: 0 };
+
+    editorCanvas.addEventListener('mousedown', (e) => {
+      const rect = editorCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const handleType = getResizeHandleTypeAt(mouseX, mouseY);
+      
+      if (e.button === 0) { // Left click
+        if (handleType) {
+          resizeMode = handleType;
+          const part = AppState.shipParts[selectedPartIndex];
+          resizeStartSize.gridW = part.gridW;
+          resizeStartSize.gridH = part.gridH;
+          resizeStartGrid.x = Math.floor(mouseX / GRID_SIZE);
+          resizeStartGrid.y = Math.floor(mouseY / GRID_SIZE);
+          preResizeState = { gridW: part.gridW, gridH: part.gridH };
+          e.preventDefault();
+          return;
+        }
+
+        const clickedIdx = findPartIndexAt(mouseX, mouseY);
+        if (clickedIdx !== -1) {
+          selectedPartIndex = clickedIdx;
+          const part = AppState.shipParts[selectedPartIndex];
+          updateCustomizerUI(part);
+
+          isDraggingPlacedPart = true;
+          const clickGridX = Math.floor(mouseX / GRID_SIZE);
+          const clickGridY = Math.floor(mouseY / GRID_SIZE);
+          dragStartGridOffset.x = clickGridX - part.gridX;
+          dragStartGridOffset.y = clickGridY - part.gridY;
+        } else {
+          selectedPartIndex = -1;
+          clearCustomizerUI();
+        }
+      } else if (e.button === 2) { // Right click: Delete
+        e.preventDefault();
+        const clickedIdx = findPartIndexAt(mouseX, mouseY);
+        if (clickedIdx !== -1) {
+          AppState.shipParts.splice(clickedIdx, 1);
+          selectedPartIndex = -1;
+          clearCustomizerUI();
+          checkShipViability();
+        }
+      }
+      drawEditor();
+    });
+
+    editorCanvas.addEventListener('mousemove', (e) => {
+      const rect = editorCanvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (resizeMode === null) {
+        const handleType = getResizeHandleTypeAt(mouseX, mouseY);
+        if (handleType === 'SE') {
+          editorCanvas.style.cursor = 'se-resize';
+        } else if (handleType === 'E') {
+          editorCanvas.style.cursor = 'e-resize';
+        } else if (handleType === 'S') {
+          editorCanvas.style.cursor = 's-resize';
+        } else {
+          editorCanvas.style.cursor = 'crosshair';
+        }
+      }
+
+      if (resizeMode !== null && selectedPartIndex !== -1) {
+        const part = AppState.shipParts[selectedPartIndex];
+        const def = PARTS_CATALOG[part.type];
+        const curGridX = Math.floor(mouseX / GRID_SIZE);
+        const curGridY = Math.floor(mouseY / GRID_SIZE);
+
+        const diffX = curGridX - resizeStartGrid.x;
+        const diffY = curGridY - resizeStartGrid.y;
+
+        let targetW = resizeStartSize.gridW;
+        let targetH = resizeStartSize.gridH;
+
+        if (resizeMode === 'E' || resizeMode === 'SE') {
+          targetW = Math.max(def.minW, Math.min(def.maxW, resizeStartSize.gridW + diffX));
+        }
+        if (resizeMode === 'S' || resizeMode === 'SE') {
+          targetH = Math.max(def.minH, Math.min(def.maxH, resizeStartSize.gridH + diffY));
+        }
+
+        const candidatePart = {
+          ...part,
+          gridW: targetW,
+          gridH: targetH
+        };
+
+        if (canPlacePart(candidatePart)) {
+          part.gridW = targetW;
+          part.gridH = targetH;
+          checkShipViability();
+          drawEditor();
+        }
+        return;
+      }
+
+      if (isDraggingPlacedPart && selectedPartIndex !== -1) {
+        const gridX = Math.floor(mouseX / GRID_SIZE);
+        const gridY = Math.floor(mouseY / GRID_SIZE);
+
+        const part = AppState.shipParts[selectedPartIndex];
+        const newGridX = gridX - dragStartGridOffset.x;
+        const newGridY = gridY - dragStartGridOffset.y;
+
+        const tempPart = {
+          ...part,
+          gridX: newGridX,
+          gridY: newGridY
+        };
+
+        if (canPlacePart(tempPart)) {
+          part.gridX = newGridX;
+          part.gridY = newGridY;
+          checkShipViability();
+          drawEditor();
+        }
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (resizeMode !== null && selectedPartIndex !== -1) {
+        const part = AppState.shipParts[selectedPartIndex];
+        if (!canPlacePart(part) && preResizeState) {
+          part.gridW = preResizeState.gridW;
+          part.gridH = preResizeState.gridH;
+        }
+        resizeMode = null;
+        preResizeState = null;
+        checkShipViability();
+        drawEditor();
+      }
+      isDraggingPlacedPart = false;
+    });
+
+    editorCanvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Rotations
+    window.addEventListener('keydown', (e) => {
+      if (AppState.mode !== 'ASSEMBLY') return;
+      if (e.key === 'r' || e.key === 'R') {
+        if (selectedPartIndex !== -1) {
+          const part = AppState.shipParts[selectedPartIndex];
+          const prevAngle = part.angle;
+          part.angle = (part.angle + 90) % 360;
+          
+          if (!canPlacePart(part)) {
+            part.angle = prevAngle;
+          } else {
+            checkShipViability();
+            drawEditor();
+          }
+        }
+      }
+    });
+
+    function addPart(type, gridX, gridY) {
+      const def = PARTS_CATALOG[type];
+      if (!def) return;
+
+      const newPart = {
+        id: 'part_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        type: type,
+        gridX: gridX,
+        gridY: gridY,
+        gridW: def.minW,
+        gridH: def.minH,
+        angle: 0,
+        color: def.color,
+        fuel: def.maxFuelPerGrid ? (def.maxFuelPerGrid * def.minW * def.minH) : 0
+      };
+      
+      if (canPlacePart(newPart)) {
+        AppState.shipParts.push(newPart);
+        selectedPartIndex = AppState.shipParts.length - 1;
+        updateCustomizerUI(newPart);
+        checkShipViability();
+      }
+    }
+
+    function getPartGridBounds(part) {
+      let w = part.gridW;
+      let h = part.gridH;
+      if (part.angle === 90 || part.angle === 270) {
+        w = part.gridH;
+        h = part.gridW;
+      }
+      return {
+        minX: part.gridX,
+        maxX: part.gridX + w - 1,
+        minY: part.gridY,
+        maxY: part.gridY + h - 1
+      };
+    }
+
+    function canPlacePart(newPart) {
+      const newBounds = getPartGridBounds(newPart);
+      let w = newPart.gridW;
+      let h = newPart.gridH;
+      if (newPart.angle === 90 || newPart.angle === 270) {
+        w = newPart.gridH;
+        h = newPart.gridW;
+      }
+
+      if (newPart.gridX < 0 || (newPart.gridX + w) > GRID_COLS ||
+          newPart.gridY < 0 || (newPart.gridY + h) > GRID_ROWS) {
+        return false;
+      }
+
+      for (let part of AppState.shipParts) {
+        if (part.id === newPart.id) continue;
+        const bounds = getPartGridBounds(part);
+        if (newBounds.minX <= bounds.maxX && newBounds.maxX >= bounds.minX &&
+            newBounds.minY <= bounds.maxY && newBounds.maxY >= bounds.minY) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function findPartIndexAt(x, y) {
+      const gridX = Math.floor(x / GRID_SIZE);
+      const gridY = Math.floor(y / GRID_SIZE);
+
+      for (let i = 0; i < AppState.shipParts.length; i++) {
+        const bounds = getPartGridBounds(AppState.shipParts[i]);
+        if (gridX >= bounds.minX && gridX <= bounds.maxX &&
+            gridY >= bounds.minY && gridY <= bounds.maxY) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    function drawEditor() {
+      editorCtx.clearRect(0, 0, editorCanvas.width, editorCanvas.height);
+
+      // Draw Grid Lines
+      editorCtx.strokeStyle = 'rgba(0, 240, 255, 0.05)';
+      editorCtx.lineWidth = 1;
+      for (let col = 0; col <= GRID_COLS; col++) {
+        editorCtx.beginPath();
+        editorCtx.moveTo(col * GRID_SIZE, 0);
+        editorCtx.lineTo(col * GRID_SIZE, editorCanvas.height);
+        editorCtx.stroke();
+      }
+      for (let row = 0; row <= GRID_ROWS; row++) {
+        editorCtx.beginPath();
+        editorCtx.moveTo(0, row * GRID_SIZE);
+        editorCtx.lineTo(editorCanvas.width, row * GRID_SIZE);
+        editorCtx.stroke();
+      }
+
+      editorCtx.strokeStyle = 'rgba(0, 240, 255, 0.12)';
+      editorCtx.lineWidth = 2;
+      editorCtx.beginPath();
+      editorCtx.moveTo(editorCanvas.width / 2, 0);
+      editorCtx.lineTo(editorCanvas.width / 2, editorCanvas.height);
+      editorCtx.stroke();
+
+      AppState.shipParts.forEach((part, index) => {
+        const isSelected = (index === selectedPartIndex);
+        renderPart(editorCtx, part, isSelected);
+
+        if (isSelected) {
+          drawResizeHandles(editorCtx, part);
+        }
+      });
+
+      if (ghostPart) {
+        editorCtx.globalAlpha = 0.4;
+        renderPart(editorCtx, ghostPart, false);
+        editorCtx.globalAlpha = 1.0;
+      }
+    }
+
+    function drawResizeHandles(ctx, part) {
+      const bounds = getPartGridBounds(part);
+      const x1 = bounds.minX * GRID_SIZE;
+      const x2 = (bounds.maxX + 1) * GRID_SIZE;
+      const y1 = bounds.minY * GRID_SIZE;
+      const y2 = (bounds.maxY + 1) * GRID_SIZE;
+
+      ctx.save();
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 2]);
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#00f0ff';
+
+      const def = PARTS_CATALOG[part.type];
+
+      if (def.maxW > def.minW || def.maxH > def.minH) {
+        ctx.fillRect(x2 - HANDLE_SIZE/2 - 2, y2 - HANDLE_SIZE/2 - 2, HANDLE_SIZE + 2, HANDLE_SIZE + 2);
+      }
+      if (def.maxW > def.minW) {
+        ctx.fillRect(x2 - HANDLE_SIZE/2 - 1, (y1 + y2)/2 - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+      }
+      if (def.maxH > def.minH) {
+        ctx.fillRect((x1 + x2)/2 - HANDLE_SIZE/2, y2 - HANDLE_SIZE/2 - 1, HANDLE_SIZE, HANDLE_SIZE);
+      }
+      ctx.restore();
+    }
+
+    function renderPart(ctx, part, isSelected) {
+      const def = PARTS_CATALOG[part.type];
+      if (!def) return;
+      
+      const w = part.gridW * GRID_SIZE;
+      const h = part.gridH * GRID_SIZE;
+
+      let renderW = w;
+      let renderH = h;
+      if (part.angle === 90 || part.angle === 270) {
+        renderW = h;
+        renderH = w;
+      }
+
+      const cx = (part.gridX + (part.angle === 90 || part.angle === 270 ? part.gridH : part.gridW) / 2) * GRID_SIZE;
+      const cy = (part.gridY + (part.angle === 90 || part.angle === 270 ? part.gridW : part.gridH) / 2) * GRID_SIZE;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((part.angle * Math.PI) / 180);
+
+      ctx.fillStyle = part.color || def.color;
+      ctx.strokeStyle = isSelected ? '#00f0ff' : 'rgba(0, 240, 255, 0.4)';
+      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+
+      if (part.type === 'pod') {
+        ctx.beginPath();
+        ctx.moveTo(-w/2, h/2);
+        ctx.lineTo(-w/2 + 8, -h/2);
+        ctx.lineTo(w/2 - 8, -h/2);
+        ctx.lineTo(w/2, h/2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.arc(0, 0, Math.min(w, h)/4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } 
+      else if (part.type === 'tank') {
+        ctx.beginPath();
+        ctx.rect(-w/2, -h/2, w, h);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 2;
+        const stripeInterval = h / 4;
+        ctx.beginPath();
+        for (let yOffset = -h/2 + stripeInterval; yOffset < h/2; yOffset += stripeInterval) {
+          ctx.moveTo(-w/2 + 2, yOffset);
+          ctx.lineTo(w/2 - 2, yOffset);
+        }
+        ctx.stroke();
+      } 
+      else if (part.type === 'engine') {
+        ctx.beginPath();
+        ctx.rect(-w/2, -h/2, w, h*0.3);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#334155';
+        ctx.strokeStyle = '#ff6b00';
+        ctx.beginPath();
+        ctx.moveTo(-w/3, -h/2 + h*0.3);
+        ctx.lineTo(w/3, -h/2 + h*0.3);
+        ctx.lineTo(w/2, h/2);
+        ctx.lineTo(-w/2, h/2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } 
+      else if (part.type === 'separator') {
+        ctx.beginPath();
+        ctx.rect(-w/2, -h/2, w, h);
+        ctx.fill();
+        ctx.strokeStyle = '#e11d48';
+        ctx.stroke();
+        
+        ctx.strokeStyle = '#e11d48';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-w/2 + 5, 0);
+        ctx.lineTo(w/2 - 5, 0);
+        ctx.stroke();
+      }
+      else if (part.type === 'rcs') {
+        ctx.beginPath();
+        ctx.arc(0, 0, w/3, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.strokeStyle = '#00f0ff';
+        ctx.beginPath();
+        ctx.moveTo(-w/2, 0);
+        ctx.lineTo(w/2, 0);
+        ctx.moveTo(0, -h/2);
+        ctx.lineTo(0, h/2);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    const colorPicker = document.getElementById('part-color-picker');
+    const colorPreview = document.getElementById('color-preview');
+    const colorHexText = document.getElementById('color-hex-text');
+
+    colorPreview.addEventListener('click', () => {
+      if (selectedPartIndex !== -1) {
+        colorPicker.click();
+      }
+    });
+
+    colorPicker.addEventListener('input', (e) => {
+      const color = e.target.value;
+      colorPreview.style.backgroundColor = color;
+      colorHexText.textContent = color.toUpperCase();
+      if (selectedPartIndex !== -1) {
+        AppState.shipParts[selectedPartIndex].color = color;
+        drawEditor();
+      }
+    });
+
+    function updateCustomizerUI(part) {
+      colorPreview.style.backgroundColor = part.color;
+      colorHexText.textContent = part.color.toUpperCase();
+      colorPicker.value = part.color;
+    }
+
+    function clearCustomizerUI() {
+      colorPreview.style.backgroundColor = '#64748b';
+      colorHexText.textContent = '#64748B';
+    }
+
+    function checkShipViability() {
+      let totalMass = 0;
+      let totalThrust = 0;
+      let hasPod = false;
+
+      AppState.shipParts.forEach(p => {
+        const def = PARTS_CATALOG[p.type];
+        if (!def) return;
+
+        const area = p.gridW * p.gridH;
+        totalMass += def.massPerGrid * area;
+
+        if (p.type === 'engine') {
+          totalThrust += p.gridW * 30.0; 
+        }
+        if (p.type === 'pod') {
+          hasPod = true;
+        }
+      });
+
+      const twr = totalMass > 0 ? (totalThrust / (totalMass * 9.8)) : 0;
+
+      document.getElementById('stat-mass').textContent = totalMass.toFixed(1) + ' t';
+      document.getElementById('stat-thrust').textContent = totalThrust.toFixed(1) + ' kN';
+      document.getElementById('stat-twr').textContent = twr.toFixed(2);
+
+      const statusEl = document.getElementById('stat-connected');
+      if (!hasPod) {
+        statusEl.textContent = '사령선 부재';
+        statusEl.style.color = '#ff3838';
+        return false;
+      }
+      
+      const isConnected = verifyAdjacencyGraph();
+      if (!isConnected) {
+        statusEl.textContent = '분리된 부품 발생';
+        statusEl.style.color = '#e11d48';
+        return false;
+      }
+
+      statusEl.textContent = 'LAUNCH READY';
+      statusEl.style.color = '#00f0ff';
+      return true;
+    }
+
+    function verifyAdjacencyGraph() {
+      if (AppState.shipParts.length === 0) return false;
+      
+      const partCount = AppState.shipParts.length;
+      const visited = new Set();
+      const podPart = AppState.shipParts.find(p => p.type === 'pod');
+      if (!podPart) return false;
+
+      const queue = [podPart.id];
+      visited.add(podPart.id);
+
+      while (queue.length > 0) {
+        const currentId = queue.shift();
+        const currentPart = AppState.shipParts.find(p => p.id === currentId);
+        const curBounds = getPartGridBounds(currentPart);
+
+        AppState.shipParts.forEach(other => {
+          if (visited.has(other.id)) return;
+          const otherBounds = getPartGridBounds(other);
+
+          const overlapX = Math.max(0, Math.min(curBounds.maxX, otherBounds.maxX) - Math.max(curBounds.minX, otherBounds.minX) + 1);
+          const overlapY = Math.max(0, Math.min(curBounds.maxY, otherBounds.maxY) - Math.max(curBounds.minY, otherBounds.minY) + 1);
+
+          const touchX = (curBounds.minX === otherBounds.maxX + 1 || curBounds.maxX + 1 === otherBounds.minX) && overlapY > 0;
+          const touchY = (curBounds.minY === otherBounds.maxY + 1 || curBounds.maxY + 1 === otherBounds.minY) && overlapX > 0;
+
+          if (touchX || touchY) {
+            visited.add(other.id);
+            queue.push(other.id);
+          }
+        });
+      }
+
+      return visited.size === partCount;
+    }
+
+    document.getElementById('btn-clear-ship').addEventListener('click', () => {
+      AppState.shipParts = [];
+      selectedPartIndex = -1;
+      clearCustomizerUI();
+      checkShipViability();
+      drawEditor();
+    });
+
+
+    // -------------------------------------------------------------
+    // BLUEPRINT CANVAS DRAW SYSTEM (POPUP)
+    // -------------------------------------------------------------
+    function showBlueprintModal(nickname, altitude, parts) {
+      if (!parts || parts.length === 0) return;
+      
+      document.getElementById('blueprint-designer').textContent = nickname;
+      document.getElementById('blueprint-height').textContent = altitude.toFixed(1) + ' km';
+      document.getElementById('blueprint-modal').classList.add('active');
+
+      const bpCanvas = document.getElementById('blueprint-canvas');
+      const bpCtx = bpCanvas.getContext('2d');
+      bpCtx.clearRect(0, 0, bpCanvas.width, bpCanvas.height);
+
+      let minGridX = 999, maxGridX = -999, minY = 999, maxY = -999;
+      parts.forEach(p => {
+        const bounds = getPartGridBounds(p);
+        if (bounds.minX < minGridX) minGridX = bounds.minX;
+        if (bounds.maxX > maxGridX) maxGridX = bounds.maxX;
+        if (bounds.minY < minY) minY = bounds.minY;
+        if (bounds.maxY > maxY) maxY = bounds.maxY;
+      });
+
+      const shipWGrids = maxGridX - minGridX + 1;
+      const shipHGrids = maxY - minY + 1;
+
+      const scale = Math.min(bpCanvas.width / (shipWGrids * GRID_SIZE + 40), bpCanvas.height / (shipHGrids * GRID_SIZE + 40));
+      const ox = (bpCanvas.width - shipWGrids * GRID_SIZE * scale) / 2;
+      const oy = (bpCanvas.height - shipHGrids * GRID_SIZE * scale) / 2;
+
+      bpCtx.save();
+      bpCtx.translate(ox, oy);
+      bpCtx.scale(scale, scale);
+
+      parts.forEach(p => {
+        const renderClone = {
+          ...p,
+          gridX: p.gridX - minGridX,
+          gridY: p.gridY - minY
+        };
+        renderPart(bpCtx, renderClone, false);
+      });
+
+      bpCtx.restore();
+    }
+
+    document.getElementById('btn-close-blueprint').addEventListener('click', () => {
+      document.getElementById('blueprint-modal').classList.remove('active');
+    });
+
+
+    // -------------------------------------------------------------
+    // FLIGHT PHYSICS SIMULATION ENGINE
+    // -------------------------------------------------------------
+    let physicsEngine, physicsWorld;
+    let flightParts = []; 
+    let spaceSeparatorConstraints = []; 
+    let fuelTanks = [];
+    let podBody = null;
+    let cameraMode = 'PILOT'; 
+    let orbitPoints = [];
+
+    const CELESTIAL = {
+      G: 0.15, 
+      Earth: {
+        x: 0,
+        y: 0,
+        r: 2000,
+        m: 10000000
+      },
+      Moon: {
+        x: 0,
+        y: -18000,
+        r: 350,
+        m: 1000000
+      }
+    };
+
+    // Staging Queue items
+    let stageSequence = []; // List of functions or stages to execute on Spacebar
+    let currentStagePtr = 0;
+
+    document.getElementById('btn-launch').addEventListener('click', () => {
+      if (!checkShipViability()) {
+        alert('발사가 불가합니다: 사령선(Pod)이 없거나 조립된 부품 중 연결이 끊어진 부분이 존재합니다.');
+        return;
+      }
+      launchFlightMode();
+    });
+
+    function launchFlightMode() {
+      AppState.mode = 'FLIGHT';
+      document.getElementById('assembly-screen').classList.remove('active');
+      document.getElementById('flight-screen').classList.add('active');
+      
+      AppState.flight.thrustThrottle = 0;
+      AppState.flight.maxAltitude = 0;
+      AppState.flight.isEnded = false;
+      AppState.flight.hasLeftGround = false; // Reset flight takeoff flag
+      AppState.flight.isEngineIgnited = false; // Engines cold initially
+      AppState.flight.startDistE = 0;
+
+      document.getElementById('throttle-range').value = 0;
+      document.getElementById('throttle-bar').style.height = '0%';
+      document.getElementById('throttle-text').textContent = '0%';
+
+      initFlightPhysics();
+      resizeFlightCanvas();
+    }
+
+    function initFlightPhysics() {
+      physicsEngine = Matter.Engine.create({
+        gravity: { x: 0, y: 0 } 
+      });
+      physicsWorld = physicsEngine.world;
+
+      flightParts = [];
+      spaceSeparatorConstraints = [];
+      fuelTanks = [];
+      separatorQueue = [];
+
+      let minGridY = 999, maxGridY = -999;
+      AppState.shipParts.forEach(p => {
+        const bounds = getPartGridBounds(p);
+        if (bounds.minY < minGridY) minGridY = bounds.minY;
+        if (bounds.maxY > maxGridY) maxGridY = bounds.maxY;
+      });
+      
+      const shipHGrids = maxGridY - minGridY + 1;
+      // Place rocket on ground surface with a small offset so it sits safely on the launchpad (bottom edge at LAUNCH_HEIGHT_OFFSET above Earth)
+      const startWorldY = CELESTIAL.Earth.y - CELESTIAL.Earth.r - (shipHGrids * GRID_SIZE) - LAUNCH_HEIGHT_OFFSET;
+
+      const bodyLookup = {};
+
+      AppState.shipParts.forEach(part => {
+        const def = PARTS_CATALOG[part.type];
+        if (!def) return;
+
+        const w = part.gridW * GRID_SIZE;
+        const h = part.gridH * GRID_SIZE;
+
+        const localCenterX = (part.gridX + part.gridW/2 - GRID_COLS/2) * GRID_SIZE;
+        const localCenterY = (part.gridY - minGridY + part.gridH/2) * GRID_SIZE;
+
+        const worldX = 0 + localCenterX;
+        const worldY = startWorldY + localCenterY;
+
+        const body = Matter.Bodies.rectangle(worldX, worldY, w, h, {
+          density: 0.001,
+          frictionAir: 0.00005,
+          angle: (part.angle * Math.PI) / 180,
+          isStatic: true // Hold rocket on launchpad until engine ignition
+        });
+
+        const gridArea = part.gridW * part.gridH;
+        const mass = def.massPerGrid * gridArea;
+        const dryMass = def.dryMassPerGrid ? (def.dryMassPerGrid * gridArea) : mass;
+        const fuel = def.maxFuelPerGrid ? (def.maxFuelPerGrid * gridArea) : 0;
+        const thrust = def.thrustPerCol ? (def.thrustPerCol * part.gridW) : 0;
+
+        Matter.Body.setMass(body, mass);
+
+        bodyLookup[part.id] = body;
+        Matter.Composite.add(physicsWorld, body);
+
+        const partFlightObj = {
+          id: part.id,
+          type: part.type,
+          body: body,
+          color: part.color,
+          maxFuel: fuel,
+          fuel: fuel,
+          thrust: thrust,
+          width: w,
+          height: h,
+          dryMass: dryMass,
+          angleOffset: (part.angle * Math.PI) / 180
+        };
+
+        flightParts.push(partFlightObj);
+
+        if (part.type === 'pod') {
+          podBody = body;
+        }
+        if (part.type === 'tank') {
+          fuelTanks.push(partFlightObj);
+        }
+        if (part.type === 'separator') {
+          separatorQueue.push(partFlightObj);
+        }
+      });
+
+      // Sort Separators by vertical grid height (bottom separator decoupling first)
+      separatorQueue.sort((a, b) => {
+        const partA = AppState.shipParts.find(p => p.id === a.id);
+        const partB = AppState.shipParts.find(p => p.id === b.id);
+        return partB.gridY - partA.gridY;
+      });
+
+      // Assemble Staged Sequencer queue list
+      stageSequence = [];
+      currentStagePtr = 0;
+
+      // Stage 1: Engine Ignition
+      stageSequence.push({
+        type: 'IGNITION',
+        label: 'ENGINE IGNITION (엔진 점화)'
+      });
+
+      // Add decoupler staging events
+      separatorQueue.forEach((sep, index) => {
+        stageSequence.push({
+          type: 'DECOUPLE',
+          target: sep,
+          label: `DECOUPLE STAGE ${index + 1} (단 분리)`
+        });
+      });
+
+      updateStagingHUD();
+
+      // Create Structural Constraints
+      for (let i = 0; i < AppState.shipParts.length; i++) {
+        const partA = AppState.shipParts[i];
+        const bodyA = bodyLookup[partA.id];
+        const boundsA = getPartGridBounds(partA);
+
+        for (let j = i + 1; j < AppState.shipParts.length; j++) {
+          const partB = AppState.shipParts[j];
+          const bodyB = bodyLookup[partB.id];
+          const boundsB = getPartGridBounds(partB);
+
+          const overlapX = Math.max(0, Math.min(boundsA.maxX, boundsB.maxX) - Math.max(boundsA.minX, boundsB.minX) + 1);
+          const overlapY = Math.max(0, Math.min(boundsA.maxY, boundsB.maxY) - Math.max(boundsA.minY, boundsB.minY) + 1);
+
+          const touchX = (boundsA.minX === boundsB.maxX + 1 || boundsA.maxX + 1 === boundsB.minX) && overlapY > 0;
+          const touchY = (boundsA.minY === boundsB.maxY + 1 || boundsA.maxY + 1 === boundsB.minY) && overlapX > 0;
+
+          if (touchX || touchY) {
+            let ox = 0, oy = 0;
+            if (touchX) {
+              oy = (overlapY * GRID_SIZE) / 3;
+            } else {
+              ox = (overlapX * GRID_SIZE) / 3;
+            }
+
+            const c1 = Matter.Constraint.create({
+              bodyA: bodyA,
+              bodyB: bodyB,
+              pointA: { x: ox, y: oy },
+              pointB: { x: ox, y: oy },
+              stiffness: 1.0,
+              damping: 0.1
+            });
+
+            const c2 = Matter.Constraint.create({
+              bodyA: bodyA,
+              bodyB: bodyB,
+              pointA: { x: -ox, y: -oy },
+              pointB: { x: -ox, y: -oy },
+              stiffness: 1.0,
+              damping: 0.1
+            });
+
+            Matter.Composite.add(physicsWorld, [c1, c2]);
+
+            if (partA.type === 'separator' || partB.type === 'separator') {
+              const sepId = partA.type === 'separator' ? partA.id : partB.id;
+              spaceSeparatorConstraints.push({ sepId, c1, c2, bodyA, bodyB });
+            }
+          }
+        }
+      }
+
+      // Initial Earth Body placement (Static)
+      const earthBody = Matter.Bodies.circle(CELESTIAL.Earth.x, CELESTIAL.Earth.y, CELESTIAL.Earth.r, {
+        isStatic: true
+      });
+      Matter.Composite.add(physicsWorld, earthBody);
+
+      if (podBody) {
+        AppState.flight.startDistE = Math.sqrt(
+          (podBody.position.x - CELESTIAL.Earth.x)**2 + 
+          (podBody.position.y - CELESTIAL.Earth.y)**2
+        );
+      }
+
+      lastTime = performance.now();
+      requestAnimationFrame(runFlightLoop);
+    }
+
+    function updateStagingHUD() {
+      const el = document.getElementById('next-stage-name');
+      if (currentStagePtr < stageSequence.length) {
+        el.textContent = stageSequence[currentStagePtr].label;
+      } else {
+        el.textContent = 'NO STAGE DEFINED';
+      }
+    }
+
+    // Input hooks for flight control
+    const keysPressed = {};
+    window.addEventListener('keydown', (e) => {
+      keysPressed[e.key.toLowerCase()] = true;
+      keysPressed[e.key] = true; 
+
+      if (AppState.mode === 'FLIGHT') {
+        if (e.key.toLowerCase() === 'm') {
+          toggleCameraMode();
+        }
+        if (e.key === ' ') { 
+          e.preventDefault();
+          triggerSequentialStaging();
+        }
+        if (e.key === 'Escape') {
+          abortFlight();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keysPressed[e.key.toLowerCase()] = false;
+      keysPressed[e.key] = false;
+    });
+
+    document.getElementById('flight-screen').addEventListener('wheel', (e) => {
+      if (AppState.mode !== 'FLIGHT') return;
+      const dir = e.deltaY < 0 ? 5 : -5;
+      adjustThrottle(dir);
+    });
+
+    const throttleSliderInput = document.getElementById('throttle-range');
+    throttleSliderInput.addEventListener('input', (e) => {
+      AppState.flight.thrustThrottle = parseInt(e.target.value);
+      updateThrottleUI();
+    });
+
+    function adjustThrottle(amount) {
+      AppState.flight.thrustThrottle = Math.max(0, Math.min(100, AppState.flight.thrustThrottle + amount));
+      throttleSliderInput.value = AppState.flight.thrustThrottle;
+      updateThrottleUI();
+    }
+
+    function updateThrottleUI() {
+      const fill = document.getElementById('throttle-bar');
+      fill.style.height = AppState.flight.thrustThrottle + '%';
+      document.getElementById('throttle-text').textContent = AppState.flight.thrustThrottle + '%';
+    }
+
+    function toggleCameraMode() {
+      cameraMode = cameraMode === 'PILOT' ? 'MAP' : 'PILOT';
+      showTemporaryWarning(cameraMode === 'PILOT' ? 'PILOT FOCUS ACTIVE' : 'MAP ORBIT ACTIVE');
+    }
+
+    function showTemporaryWarning(txt, duration = 2000) {
+      const box = document.getElementById('hud-warnings-box');
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'hud-alert';
+      alertDiv.textContent = txt;
+      box.appendChild(alertDiv);
+      setTimeout(() => {
+        alertDiv.remove();
+      }, duration);
+    }
+
+    // -------------------------------------------------------------
+    // STAGING SYSTEM (Spacebar triggers Multi-stage queue)
+    // -------------------------------------------------------------
+    function triggerSequentialStaging() {
+      if (currentStagePtr >= stageSequence.length) {
+        showTemporaryWarning('ALL STAGES COMPLETED');
+        return;
+      }
+
+      const activeStage = stageSequence[currentStagePtr];
+      currentStagePtr++;
+      updateStagingHUD();
+
+      if (activeStage.type === 'IGNITION') {
+        AppState.flight.isEngineIgnited = true;
+        showTemporaryWarning('ENGINES IGNITED! 점화 시작!');
+        
+        // Release all bodies from static hold (launchpad release)
+        flightParts.forEach(p => {
+          Matter.Body.setStatic(p.body, false);
+        });
+        
+        // Auto set throttle to 100% to lift off immediately for better control UX
+        adjustThrottle(100);
+      } 
+      else if (activeStage.type === 'DECOUPLE') {
+        const activeSep = activeStage.target;
+        showTemporaryWarning('STAGE DECOUPLED! 단 분리!');
+
+        const constraintsToSever = spaceSeparatorConstraints.filter(c => c.sepId === activeSep.id);
+        constraintsToSever.forEach(sc => {
+          Matter.Composite.remove(physicsWorld, sc.c1);
+          Matter.Composite.remove(physicsWorld, sc.c2);
+
+          const kickDir = { x: sc.bodyB.position.x - sc.bodyA.position.x, y: sc.bodyB.position.y - sc.bodyA.position.y };
+          const kickDist = Math.sqrt(kickDir.x * kickDir.x + kickDir.y * kickDir.y);
+          if (kickDist > 0) {
+            const forceMag = 0.05;
+            Matter.Body.applyForce(sc.bodyB, sc.bodyB.position, {
+              x: (kickDir.x / kickDist) * forceMag,
+              y: (kickDir.y / kickDist) * forceMag
+            });
+            Matter.Body.applyForce(sc.bodyA, sc.bodyA.position, {
+              x: -(kickDir.x / kickDist) * forceMag,
+              y: -(kickDir.y / kickDist) * forceMag
+            });
+          }
+        });
+
+        spaceSeparatorConstraints = spaceSeparatorConstraints.filter(c => c.sepId !== activeSep.id);
+      }
+    }
+
+    function applyGravity(bodies) {
+      bodies.forEach(bodyObj => {
+        const body = bodyObj.body;
+        
+        // Earth Gravity
+        const dxE = CELESTIAL.Earth.x - body.position.x;
+        const dyE = CELESTIAL.Earth.y - body.position.y;
+        const distSqE = dxE * dxE + dyE * dyE;
+        const distE = Math.sqrt(distSqE);
+
+        if (distE > 0) {
+          const forceMagE = (CELESTIAL.G * CELESTIAL.Earth.m * body.mass) / distSqE;
+          Matter.Body.applyForce(body, body.position, {
+            x: forceMagE * (dxE / distE),
+            y: forceMagE * (dyE / distE)
+          });
+        }
+
+        // Moon Gravity
+        const dxM = CELESTIAL.Moon.x - body.position.x;
+        const dyM = CELESTIAL.Moon.y - body.position.y;
+        const distSqM = dxM * dxM + dyM * dyM;
+        const distM = Math.sqrt(distSqM);
+
+        if (distM > 0) {
+          const forceMagM = (CELESTIAL.G * CELESTIAL.Moon.m * body.mass) / distSqM;
+          Matter.Body.applyForce(body, body.position, {
+            x: forceMagM * (dxM / distM),
+            y: forceMagM * (dyM / distM)
+          });
+        }
+      });
+    }
+
+    function checkActivePartConnectivity(podBody) {
+      if (!podBody) return [];
+      
+      const visited = new Set();
+      const queue = [podBody];
+      visited.add(podBody.id);
+
+      const allConstraints = Matter.Composite.allConstraints(physicsWorld);
+
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        
+        allConstraints.forEach(c => {
+          let neighbor = null;
+          if (c.bodyA && c.bodyA.id === curr.id) {
+            neighbor = c.bodyB;
+          } else if (c.bodyB && c.bodyB.id === curr.id) {
+            neighbor = c.bodyA;
+          }
+
+          if (neighbor && !visited.has(neighbor.id)) {
+            visited.add(neighbor.id);
+            queue.push(neighbor);
+          }
+        });
+      }
+      return Array.from(visited);
+    }
+
+    // Engine thrust propellant
+    function applyThrust() {
+      if (AppState.flight.thrustThrottle === 0 || !AppState.flight.isEngineIgnited) return;
+
+      const activeBodyIds = checkActivePartConnectivity(podBody);
+      const activeEngines = flightParts.filter(p => p.type === 'engine' && activeBodyIds.includes(p.body.id));
+
+      if (activeEngines.length === 0) return;
+
+      const activeTanks = flightParts.filter(p => p.type === 'tank' && activeBodyIds.includes(p.body.id) && p.fuel > 0);
+      
+      let totalAvailableFuel = 0;
+      activeTanks.forEach(t => totalAvailableFuel += t.fuel);
+
+      if (totalAvailableFuel <= 0) return;
+
+      const throttleRatio = AppState.flight.thrustThrottle / 100;
+      const fuelConsumptionPerEngine = 0.05 * throttleRatio;
+
+      let neededFuel = fuelConsumptionPerEngine * activeEngines.length;
+      let fuelDrawRatio = 1.0;
+      if (totalAvailableFuel < neededFuel) {
+        fuelDrawRatio = totalAvailableFuel / neededFuel;
+        neededFuel = totalAvailableFuel;
+      }
+
+      activeTanks.forEach(t => {
+        const portion = (t.fuel / totalAvailableFuel) * neededFuel;
+        t.fuel = Math.max(0, t.fuel - portion);
+        
+        const fuelFraction = t.fuel / t.maxFuel;
+        const currentMass = t.dryMass + ((t.maxFuel * 0.04) * fuelFraction); 
+        Matter.Body.setMass(t.body, currentMass);
+      });
+
+      activeEngines.forEach(eng => {
+        const forceMagnitude = eng.thrust * throttleRatio * fuelDrawRatio;
+        
+        const forceAngle = eng.body.angle - Math.PI / 2; 
+        const fx = Math.cos(forceAngle) * forceMagnitude;
+        const fy = Math.sin(forceAngle) * forceMagnitude;
+
+        const offset = {
+          x: Math.cos(eng.body.angle + Math.PI / 2) * (eng.height / 2),
+          y: Math.sin(eng.body.angle + Math.PI / 2) * (eng.height / 2)
+        };
+
+        Matter.Body.applyForce(eng.body, {
+          x: eng.body.position.x + offset.x,
+          y: eng.body.position.y + offset.y
+        }, { x: fx, y: fy });
+        
+        createExhaustParticle(eng.body.position.x + offset.x, eng.body.position.y + offset.y, eng.body.angle);
+      });
+    }
+
+    // RCS Attitudinal thruster
+    function applyRCS() {
+      const activeBodyIds = checkActivePartConnectivity(podBody);
+      const activeRcs = flightParts.filter(p => p.type === 'rcs' && activeBodyIds.includes(p.body.id));
+
+      let leftRot = keysPressed['a'] || keysPressed['ㅁ'] || keysPressed['arrowleft'] || keysPressed['ArrowLeft'];
+      let rightRot = keysPressed['d'] || keysPressed['ㅇ'] || keysPressed['arrowright'] || keysPressed['ArrowRight'];
+
+      if (!leftRot && !rightRot) return;
+
+      const rotDirection = leftRot ? -1 : 1; 
+
+      if (podBody) {
+        const activeGroupBodies = flightParts.filter(p => activeBodyIds.includes(p.body.id)).map(p => p.body);
+        let totalMass = 0;
+        activeGroupBodies.forEach(b => totalMass += b.mass);
+
+        const torqueStrength = 0.012 * totalMass * rotDirection;
+        Matter.Body.setAngularVelocity(podBody, podBody.angularVelocity + (rotDirection * 0.0035));
+      }
+
+      activeRcs.forEach(rcs => {
+        const angle = rcs.body.angle;
+        const plumeAngle = angle + (rotDirection > 0 ? 0 : Math.PI);
+        const ox = Math.cos(plumeAngle) * (rcs.width / 2);
+        const oy = Math.sin(plumeAngle) * (rcs.height / 2);
+
+        createRcsParticle(rcs.body.position.x + ox, rcs.body.position.y + oy, plumeAngle);
+      });
+    }
+
+    function handleKeyboardThrottle() {
+      if (AppState.mode !== 'FLIGHT') return;
+
+      let upThrust = keysPressed['w'] || keysPressed['ㅈ'] || keysPressed['arrowup'] || keysPressed['ArrowUp'];
+      let downThrust = keysPressed['s'] || keysPressed['ㄴ'] || keysPressed['arrowdown'] || keysPressed['ArrowDown'];
+
+      if (upThrust) {
+        adjustThrottle(1); 
+      }
+      if (downThrust) {
+        adjustThrottle(-1);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // EXHAUST PARTICLE VFX SYSTEM
+    // -------------------------------------------------------------
+    let flightParticles = []; 
+
+    function createExhaustParticle(x, y, bodyAngle) {
+      const exhaustAngle = bodyAngle + Math.PI / 2 + (Math.random() * 0.22 - 0.11);
+      const velocityMag = Math.random() * 6 + 4;
+
+      flightParticles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(exhaustAngle) * velocityMag,
+        vy: Math.sin(exhaustAngle) * velocityMag,
+        size: Math.random() * 10 + 5,
+        life: 1.0,
+        decay: Math.random() * 0.06 + 0.04,
+        color: Math.random() > 0.4 ? '#ff6c00' : '#ffea00'
+      });
+    }
+
+    function createRcsParticle(x, y, plumeAngle) {
+      const particleAngle = plumeAngle + (Math.random() * 0.4 - 0.2);
+      const velocityMag = Math.random() * 3 + 1.5;
+
+      flightParticles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(particleAngle) * velocityMag,
+        vy: Math.sin(particleAngle) * velocityMag,
+        size: Math.random() * 4 + 2,
+        life: 0.8,
+        decay: 0.07,
+        color: '#00f0ff'
+      });
+    }
+
+    function updateParticles() {
+      flightParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= p.decay;
+      });
+      flightParticles = flightParticles.filter(p => p.life > 0);
+    }
+
+    // -------------------------------------------------------------
+    // ORBIT PREDICTION SIMULATOR
+    // -------------------------------------------------------------
+    function updateOrbitProjection() {
+      if (!podBody) return;
+
+      const activeIds = checkActivePartConnectivity(podBody);
+      const activeGroupBodies = flightParts.filter(p => activeIds.includes(p.body.id)).map(p => p.body);
+
+      if (activeGroupBodies.length === 0) {
+        orbitPoints = [];
+        return;
+      }
+
+      let totalM = 0;
+      let comX = 0, comY = 0;
+      let avgVx = 0, avgVy = 0;
+
+      activeGroupBodies.forEach(b => {
+        totalM += b.mass;
+        comX += b.position.x * b.mass;
+        comY += b.position.y * b.mass;
+        avgVx += b.velocity.x * b.mass;
+        avgVy += b.velocity.y * b.mass;
+      });
+
+      if (totalM > 0) {
+        comX /= totalM;
+        comY /= totalM;
+        avgVx /= totalM;
+        avgVy /= totalM;
+      } else {
+        orbitPoints = [];
+        return;
+      }
+
+      const steps = 420;
+      const dt = 15; 
+      
+      let pX = comX;
+      let pY = comY;
+      let vX = avgVx;
+      let vY = avgVy;
+
+      orbitPoints = [];
+
+      for (let i = 0; i < steps; i++) {
+        const dxE = CELESTIAL.Earth.x - pX;
+        const dyE = CELESTIAL.Earth.y - pY;
+        const distSqE = dxE * dxE + dyE * dyE;
+        const distE = Math.sqrt(distSqE);
+
+        const dxM = CELESTIAL.Moon.x - pX;
+        const dyM = CELESTIAL.Moon.y - pY;
+        const distSqM = dxM * dxM + dyM * dyM;
+        const distM = Math.sqrt(distSqM);
+
+        if (distE < CELESTIAL.Earth.r) {
+          orbitPoints.push({ x: pX, y: pY });
+          break;
+        }
+        if (distM < CELESTIAL.Moon.r) {
+          orbitPoints.push({ x: pX, y: pY });
+          break;
+        }
+
+        let ax = 0, ay = 0;
+
+        if (distE > 0) {
+          const aE = (CELESTIAL.G * CELESTIAL.Earth.m) / distSqE;
+          ax += aE * (dxE / distE);
+          ay += aE * (dyE / distE);
+        }
+
+        if (distM > 0) {
+          const aM = (CELESTIAL.G * CELESTIAL.Moon.m) / distSqM;
+          ax += aM * (dxM / distM);
+          ay += aM * (dyM / distM);
+        }
+
+        vX += ax * dt;
+        vY += ay * dt;
+
+        pX += vX * dt;
+        pY += vY * dt;
+
+        orbitPoints.push({ x: pX, y: pY });
+      }
+    }
+
+
+    // -------------------------------------------------------------
+    // FLIGHT RENDERING LOOP
+    // -------------------------------------------------------------
+    const flightCanvas = document.getElementById('flight-canvas');
+    const flightCtx = flightCanvas.getContext('2d');
+    let lastTime = 0;
+
+    window.addEventListener('resize', () => {
+      if (AppState.mode === 'FLIGHT') resizeFlightCanvas();
+    });
+
+    function resizeFlightCanvas() {
+      flightCanvas.width = window.innerWidth;
+      flightCanvas.height = window.innerHeight;
+    }
+
+    function runFlightLoop(time) {
+      if (AppState.mode !== 'FLIGHT') return;
+
+      const dt = time - lastTime;
+      lastTime = time;
+
+      Matter.Engine.update(physicsEngine, Math.min(dt, 30));
+
+      // Only apply gravity after engine ignition (rocket sits on launchpad before that)
+      if (AppState.flight.isEngineIgnited) {
+        applyGravity(flightParts);
+      }
+      applyThrust();
+      applyRCS();
+      handleKeyboardThrottle();
+
+      updateParticles();
+      updateOrbitProjection();
+      updateHUD();
+      checkFlightCollisionSensors();
+      renderFlightGraphics();
+
+      if (!AppState.flight.isEnded) {
+        requestAnimationFrame(runFlightLoop);
+      }
+    }
+
+    function checkFlightCollisionSensors() {
+      if (!podBody) return;
+
+      const dxE = podBody.position.x - CELESTIAL.Earth.x;
+      const dyE = podBody.position.y - CELESTIAL.Earth.y;
+      const distE = Math.sqrt(dxE * dxE + dyE * dyE);
+
+      const dxM = podBody.position.x - CELESTIAL.Moon.x;
+      const dyM = podBody.position.y - CELESTIAL.Moon.y;
+      const distM = Math.sqrt(dxM * dxM + dyM * dyM);
+
+      const altKm = Math.max(0, (distE - CELESTIAL.Earth.r) * 10 / 1000);
+
+      // Takeoff verification flag - check altitude gained from initial starting point
+      const altGained = distE - AppState.flight.startDistE;
+      if (AppState.flight.isEngineIgnited && altGained > 15) {
+        AppState.flight.hasLeftGround = true;
+      }
+
+      // Check Earth landing/crash based on returning to original launch distance
+      if (AppState.flight.hasLeftGround && distE <= AppState.flight.startDistE + 5) {
+        const velMag = Math.sqrt(podBody.velocity.x * podBody.velocity.x + podBody.velocity.y * podBody.velocity.y) * 10;
+        if (velMag > 25.0) { // scaled speed threshold (~2.5px/frame -> 25m/s)
+          endFlightMission('CRASHED_EARTH');
+        } else {
+          endFlightMission('LANDED_EARTH');
+        }
+      }
+
+      // Check Moon landing/crash
+      if (distM < CELESTIAL.Moon.r + 25) {
+        const velMag = Math.sqrt(podBody.velocity.x * podBody.velocity.x + podBody.velocity.y * podBody.velocity.y) * 10;
+        if (velMag > 25.0) {
+          endFlightMission('CRASHED_MOON');
+        } else {
+          endFlightMission('LANDED_MOON');
+        }
+      }
+    }
+
+    function updateHUD() {
+      if (!podBody) return;
+
+      const pos = podBody.position;
+      const vel = podBody.velocity;
+
+      const dxE = pos.x - CELESTIAL.Earth.x;
+      const dyE = pos.y - CELESTIAL.Earth.y;
+      const distE = Math.sqrt(dxE*dxE + dyE*dyE);
+      
+      const altKm = Math.max(0, (distE - CELESTIAL.Earth.r) * 10 / 1000); 
+      const velMs = Math.sqrt(vel.x * vel.x + vel.y * vel.y) * 10; 
+
+      const unitRadialX = dxE / distE;
+      const unitRadialY = dyE / distE;
+
+      const vVert = (vel.x * unitRadialX + vel.y * unitRadialY) * 10;
+      const vHoriz = (-vel.x * unitRadialY + vel.y * unitRadialX) * 10;
+
+      const activeIds = checkActivePartConnectivity(podBody);
+      const activeTanks = flightParts.filter(p => p.type === 'tank' && activeIds.includes(p.body.id));
+      
+      let maxFuel = 0, currentFuel = 0;
+      activeTanks.forEach(t => {
+        maxFuel += t.maxFuel;
+        currentFuel += t.fuel;
+      });
+
+      const fuelPct = maxFuel > 0 ? (currentFuel / maxFuel * 100) : 0;
+
+      document.getElementById('hud-altitude').textContent = altKm.toFixed(2) + ' km';
+      document.getElementById('hud-velocity').textContent = velMs.toFixed(1) + ' m/s';
+      document.getElementById('hud-vhoriz').textContent = vHoriz.toFixed(1) + ' m/s';
+      document.getElementById('hud-vvert').textContent = vVert.toFixed(1) + ' m/s';
+      document.getElementById('hud-fuel').textContent = Math.round(fuelPct) + ' %';
+
+      if (altKm > AppState.flight.maxAltitude) {
+        AppState.flight.maxAltitude = altKm;
+      }
+
+      const fuelBar = document.getElementById('active-stage-fuel');
+      fuelBar.style.width = fuelPct + '%';
+    }
+
+    // Calculate altitude in km from Earth center distance
+    function getAltitudeKm() {
+      if (!podBody) return 0;
+      const dx = podBody.position.x - CELESTIAL.Earth.x;
+      const dy = podBody.position.y - CELESTIAL.Earth.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      return Math.max(0, (dist - CELESTIAL.Earth.r) * 10 / 1000);
+    }
+
+    // Draw atmospheric sky background based on altitude
+    function drawAtmosphericSky(ctx, altKm) {
+      // altKm 0 = ground level blue sky, altKm > ~5 = fading to space
+      const atmosphereHeight = 8; // km before fully space
+      const t = Math.min(1, altKm / atmosphereHeight); // 0=ground, 1=space
+
+      // Sky color interpolation: blue sky -> dark space
+      const skyR = Math.round(25 * (1 - t) + 5 * t);
+      const skyG = Math.round(120 * (1 - t) + 7 * t);
+      const skyB = Math.round(220 * (1 - t) + 10 * t);
+      const skyBottom = `rgb(${skyR}, ${skyG}, ${skyB})`;
+
+      const topR = Math.round(8 * (1 - t) + 5 * t);
+      const topG = Math.round(30 * (1 - t) + 7 * t);
+      const topB = Math.round(80 * (1 - t) + 10 * t);
+      const skyTop = `rgb(${topR}, ${topG}, ${topB})`;
+
+      const grad = ctx.createLinearGradient(0, 0, 0, flightCanvas.height);
+      grad.addColorStop(0, skyTop);
+      grad.addColorStop(1, skyBottom);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, flightCanvas.width, flightCanvas.height);
+
+      // Draw stars that fade in as we go higher
+      if (t > 0.15) {
+        ctx.globalAlpha = Math.min(1, (t - 0.15) / 0.5);
+        ctx.fillStyle = '#ffffff';
+        let seed = 77777;
+        function random() {
+          let x = Math.sin(seed++) * 10000;
+          return x - Math.floor(x);
+        }
+        for (let i = 0; i < 100; i++) {
+          const sx = random() * flightCanvas.width;
+          const sy = random() * flightCanvas.height * 0.7;
+          const size = random() * 2 + 0.5;
+          ctx.beginPath();
+          ctx.arc(sx, sy, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+      }
+    }
+
+    // Draw detailed ground surface, launchpad, and terrain
+    function drawGroundScene(ctx, camZoom) {
+      if (!podBody) return;
+      
+      const earthSurfaceY = CELESTIAL.Earth.y - CELESTIAL.Earth.r;
+
+      // --- Terrain / Ground ---
+      // Dark brown ground layer
+      ctx.fillStyle = '#2d1f0e';
+      ctx.fillRect(-8000, earthSurfaceY, 16000, 4000 + CELESTIAL.Earth.r * 2);
+
+      // Green grass top layer
+      ctx.fillStyle = '#1a5c1a';
+      ctx.fillRect(-8000, earthSurfaceY - 3, 16000, 12);
+
+      // Lighter grass highlight
+      ctx.fillStyle = '#228B22';
+      ctx.fillRect(-8000, earthSurfaceY - 5, 16000, 5);
+
+      // Grass detail tufts
+      ctx.fillStyle = '#2d8b2d';
+      let seed = 12345;
+      function random() {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      }
+      for (let i = 0; i < 80; i++) {
+        const gx = (random() - 0.5) * 6000;
+        const gh = random() * 12 + 4;
+        const gw = random() * 3 + 1;
+        ctx.fillRect(gx - gw/2, earthSurfaceY - 5 - gh, gw, gh);
+      }
+
+      // --- Launchpad ---
+      const padCenterX = 0;
+      const padY = earthSurfaceY;
+
+      // Concrete launch pad base
+      ctx.fillStyle = '#555555';
+      ctx.fillRect(padCenterX - 120, padY - 8, 240, 12);
+      ctx.fillStyle = '#666666';
+      ctx.fillRect(padCenterX - 110, padY - 10, 220, 4);
+
+      // Pad markings
+      ctx.strokeStyle = '#ffcc00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(padCenterX - 100, padY - 6);
+      ctx.lineTo(padCenterX + 100, padY - 6);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Launch tower (left side)
+      const towerX = padCenterX - 90;
+      const towerH = 280 + LAUNCH_HEIGHT_OFFSET;
+
+      // Tower main structure
+      ctx.fillStyle = '#7a7a7a';
+      ctx.fillRect(towerX - 8, padY - towerH, 16, towerH);
+
+      // Tower cross beams
+      ctx.strokeStyle = '#999999';
+      ctx.lineWidth = 2;
+      const numBeams = Math.floor((towerH - 40) / 42) + 1;
+      for (let i = 0; i < numBeams; i++) {
+        const beamY = padY - 40 - i * 42;
+        ctx.beginPath();
+        ctx.moveTo(towerX - 8, beamY);
+        ctx.lineTo(towerX + 50, beamY);
+        ctx.stroke();
+      }
+
+      // Tower diagonal supports
+      ctx.strokeStyle = '#888888';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < numBeams - 1; i++) {
+        const y1 = padY - 40 - i * 42;
+        const y2 = padY - 82 - i * 42;
+        ctx.beginPath();
+        ctx.moveTo(towerX - 6, y1);
+        ctx.lineTo(towerX + 6, y2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(towerX + 6, y1);
+        ctx.lineTo(towerX - 6, y2);
+        ctx.stroke();
+      }
+
+      // Red warning light on tower top
+      const lightPhase = (Date.now() % 1500) / 1500;
+      const lightAlpha = lightPhase < 0.5 ? 1.0 : 0.3;
+      ctx.fillStyle = `rgba(255, 0, 0, ${lightAlpha})`;
+      ctx.beginPath();
+      ctx.arc(towerX, padY - towerH - 6, 5, 0, Math.PI * 2);
+      ctx.fill();
+      // Light glow
+      ctx.fillStyle = `rgba(255, 0, 0, ${lightAlpha * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(towerX, padY - towerH - 6, 15, 0, Math.PI * 2);
+      ctx.fill();
+
+      // --- Flame Trench ---
+      ctx.fillStyle = '#333333';
+      ctx.fillRect(padCenterX - 40, padY + 2, 80, 20);
+      ctx.fillStyle = '#222222';
+      ctx.fillRect(padCenterX - 35, padY + 5, 70, 14);
+
+      // --- Support clamps (holding rocket) ---
+      ctx.fillStyle = '#888888';
+      // Left clamp
+      ctx.fillRect(padCenterX - 55, padY - 45 - LAUNCH_HEIGHT_OFFSET + 2, 15, 40 + LAUNCH_HEIGHT_OFFSET - 2);
+      ctx.fillRect(padCenterX - 55, padY - 45 - LAUNCH_HEIGHT_OFFSET + 2, 25, 6);
+      // Right clamp  
+      ctx.fillRect(padCenterX + 40, padY - 45 - LAUNCH_HEIGHT_OFFSET + 2, 15, 40 + LAUNCH_HEIGHT_OFFSET - 2);
+      ctx.fillRect(padCenterX + 30, padY - 45 - LAUNCH_HEIGHT_OFFSET + 2, 25, 6);
+
+      // --- Background buildings (far) ---
+      ctx.fillStyle = '#1a1a2e';
+      for (let i = 0; i < 5; i++) {
+        const bx = -600 + i * 280 + (i % 2) * 50;
+        const bw = 40 + random() * 30;
+        const bh = 30 + random() * 50;
+        ctx.fillRect(bx, padY - bh, bw, bh);
+      }
+    }
+
+    // Draw clouds at various altitudes
+    function drawClouds(ctx, altKm) {
+      if (altKm > 6) return; // no clouds above ~6km
+
+      const earthSurfaceY = CELESTIAL.Earth.y - CELESTIAL.Earth.r;
+      const cloudAlpha = Math.max(0, 1 - altKm / 6);
+
+      ctx.globalAlpha = cloudAlpha * 0.6;
+      ctx.fillStyle = '#ffffff';
+
+      let seed = 8888;
+      function random() {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      }
+
+      // Low clouds (~100-500m)
+      for (let i = 0; i < 12; i++) {
+        const cx = (random() - 0.5) * 5000;
+        const cy = earthSurfaceY - 200 - random() * 600;
+        const cw = random() * 300 + 150;
+        const ch = random() * 30 + 15;
+
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, cw/2, ch/2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // High clouds (1-4km)
+      ctx.globalAlpha = cloudAlpha * 0.3;
+      for (let i = 0; i < 8; i++) {
+        const cx = (random() - 0.5) * 8000;
+        const cy = earthSurfaceY - 1500 - random() * 3000;
+        const cw = random() * 500 + 200;
+        const ch = random() * 20 + 10;
+
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, cw/2, ch/2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.globalAlpha = 1.0;
+    }
+
+    function renderFlightGraphics() {
+      if (AppState.mode !== 'FLIGHT') return;
+      if (!podBody) return;
+
+      const altKm = getAltitudeKm();
+      const isNearGround = altKm < 15; // Show ground-based view when < 15km
+
+      const cx = flightCanvas.width / 2;
+      const cy = flightCanvas.height / 2;
+
+      // --- Background ---
+      if (cameraMode === 'PILOT' && isNearGround) {
+        drawAtmosphericSky(flightCtx, altKm);
+      } else {
+        flightCtx.fillStyle = '#05070a';
+        flightCtx.fillRect(0, 0, flightCanvas.width, flightCanvas.height);
+      }
+
+      flightCtx.save();
+
+      if (cameraMode === 'PILOT') {
+        flightCtx.translate(cx, cy);
+        const velMag = Math.sqrt(podBody.velocity.x*podBody.velocity.x + podBody.velocity.y*podBody.velocity.y);
+        
+        // Zoom in more when near ground for immersive launch experience
+        let dynamicZoom;
+        if (altKm < 0.5) {
+          dynamicZoom = 1.5; // Very close zoom on launchpad
+        } else if (altKm < 3) {
+          // Smooth transition from 1.5 to normal zoom
+          const t = (altKm - 0.5) / 2.5;
+          dynamicZoom = 1.5 * (1 - t) + Math.max(0.22, Math.min(1.2, 0.95 - (velMag * 0.01))) * t;
+        } else {
+          dynamicZoom = Math.max(0.22, Math.min(1.2, 0.95 - (velMag * 0.01)));
+        }
+
+        flightCtx.scale(dynamicZoom, dynamicZoom);
+        flightCtx.translate(-podBody.position.x, -podBody.position.y);
+      } else {
+        flightCtx.translate(cx, cy);
+        
+        const dx = podBody.position.x - CELESTIAL.Earth.x;
+        const dy = podBody.position.y - CELESTIAL.Earth.y;
+        const shipDist = Math.sqrt(dx*dx + dy*dy);
+        
+        const mapScale = Math.max(0.015, Math.min(0.12, (flightCanvas.height / (shipDist * 2.5))));
+        flightCtx.scale(mapScale, mapScale);
+        
+        flightCtx.translate(-(podBody.position.x + CELESTIAL.Earth.x)/2, -(podBody.position.y + CELESTIAL.Earth.y)/2);
+      }
+
+      // Draw space stars (only when high enough or in map mode)
+      if (!isNearGround || cameraMode === 'MAP') {
+        drawParallaxStars(flightCtx);
+      }
+
+      // Trajectory
+      if (orbitPoints.length > 1) {
+        flightCtx.strokeStyle = 'rgba(0, 240, 255, 0.6)';
+        flightCtx.lineWidth = cameraMode === 'PILOT' ? 4 : 20;
+        flightCtx.setLineDash([15, 15]);
+        flightCtx.beginPath();
+        flightCtx.moveTo(orbitPoints[0].x, orbitPoints[0].y);
+        for (let i = 1; i < orbitPoints.length; i++) {
+          flightCtx.lineTo(orbitPoints[i].x, orbitPoints[i].y);
+        }
+        flightCtx.stroke();
+        flightCtx.setLineDash([]); 
+        
+        if (cameraMode === 'MAP') {
+          drawOrbitAltLabels(flightCtx);
+        }
+      }
+
+      // Draw Earth (sphere view for map, or when high enough)
+      if (cameraMode === 'MAP' || altKm >= 15) {
+        drawEarth(flightCtx);
+      }
+      drawMoon(flightCtx);
+
+      // Draw ground scene when near surface in PILOT mode
+      if (cameraMode === 'PILOT' && isNearGround) {
+        drawGroundScene(flightCtx);
+        drawClouds(flightCtx, altKm);
+      }
+
+      // Render spacecraft bodies
+      flightParts.forEach(p => {
+        const angle = p.body.angle;
+        const pos = p.body.position;
+
+        flightCtx.save();
+        flightCtx.translate(pos.x, pos.y);
+        flightCtx.rotate(angle);
+
+        flightCtx.fillStyle = p.color;
+        flightCtx.strokeStyle = 'rgba(0,240,255,0.5)';
+        flightCtx.lineWidth = 2;
+
+        const w = p.width;
+        const h = p.height;
+
+        if (p.type === 'pod') {
+          flightCtx.beginPath();
+          flightCtx.moveTo(-w/2, h/2);
+          flightCtx.lineTo(-w/2 + 8, -h/2);
+          flightCtx.lineTo(w/2 - 8, -h/2);
+          flightCtx.lineTo(w/2, h/2);
+          flightCtx.closePath();
+          flightCtx.fill();
+          flightCtx.stroke();
+          
+          flightCtx.fillStyle = '#1e293b';
+          flightCtx.beginPath();
+          flightCtx.arc(0, 0, Math.min(w, h)/4, 0, Math.PI * 2);
+          flightCtx.fill();
+          flightCtx.stroke();
+        } 
+        else if (p.type === 'tank') {
+          flightCtx.beginPath();
+          flightCtx.rect(-w/2, -h/2, w, h);
+          flightCtx.fill();
+          flightCtx.stroke();
+
+          // Fuel level rectangle
+          const fuelPct = p.fuel / p.maxFuel;
+          flightCtx.fillStyle = 'rgba(0, 240, 255, 0.12)';
+          flightCtx.fillRect(-w/2 + 2, -h/2 + 2, w - 4, (h - 4) * (1 - fuelPct));
+
+          // Detail stripes
+          flightCtx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+          flightCtx.lineWidth = 2;
+          const stripeInterval = h / 4;
+          flightCtx.beginPath();
+          for (let yOffset = -h/2 + stripeInterval; yOffset < h/2; yOffset += stripeInterval) {
+            flightCtx.moveTo(-w/2 + 2, yOffset);
+            flightCtx.lineTo(w/2 - 2, yOffset);
+          }
+          flightCtx.stroke();
+        } 
+        else if (p.type === 'engine') {
+          flightCtx.beginPath();
+          flightCtx.rect(-w/2, -h/2, w, h*0.3);
+          flightCtx.fill();
+          flightCtx.stroke();
+
+          flightCtx.fillStyle = '#334155';
+          flightCtx.strokeStyle = '#ff6b00';
+          flightCtx.beginPath();
+          flightCtx.moveTo(-w/3, -h/2 + h*0.3);
+          flightCtx.lineTo(w/3, -h/2 + h*0.3);
+          flightCtx.lineTo(w/2, h/2);
+          flightCtx.lineTo(-w/2, h/2);
+          ctxClosedPathWithFlame(flightCtx, w, h);
+        } 
+        else if (p.type === 'separator') {
+          flightCtx.beginPath();
+          flightCtx.rect(-w/2, -h/2, w, h);
+          flightCtx.fill();
+          flightCtx.strokeStyle = '#e11d48';
+          flightCtx.stroke();
+        }
+        else if (p.type === 'rcs') {
+          flightCtx.beginPath();
+          flightCtx.arc(0, 0, w/3, 0, Math.PI*2);
+          flightCtx.fill();
+          flightCtx.stroke();
+        }
+
+        flightCtx.restore();
+      });
+
+      renderParticles(flightCtx);
+
+      flightCtx.restore();
+
+      // Draw altitude indicator bar (screen-space overlay)
+      if (cameraMode === 'PILOT' && altKm < 20) {
+        drawAltitudeBar(flightCtx, altKm);
+      }
+    }
+
+    // Screen-space altitude indicator bar
+    function drawAltitudeBar(ctx, altKm) {
+      const barX = flightCanvas.width - 60;
+      const barY = 100;
+      const barH = flightCanvas.height - 250;
+      const barW = 12;
+
+      // Background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+
+      // Gradient fill
+      const grad = ctx.createLinearGradient(barX, barY, barX, barY + barH);
+      grad.addColorStop(0, '#1a0a30');
+      grad.addColorStop(0.3, '#0a1a40');
+      grad.addColorStop(0.7, '#1a4a80');
+      grad.addColorStop(1, '#228B22');
+      ctx.fillStyle = grad;
+      ctx.fillRect(barX, barY, barW, barH);
+
+      // Current altitude marker
+      const maxDisplayAlt = 20;
+      const markerT = Math.min(1, altKm / maxDisplayAlt);
+      const markerY = barY + barH - markerT * barH;
+
+      ctx.fillStyle = '#ff6b00';
+      ctx.beginPath();
+      ctx.moveTo(barX - 6, markerY);
+      ctx.lineTo(barX, markerY - 5);
+      ctx.lineTo(barX, markerY + 5);
+      ctx.closePath();
+      ctx.fill();
+
+      // Altitude labels
+      ctx.fillStyle = '#00f0ff';
+      ctx.font = '10px "Share Tech Mono"';
+      ctx.textAlign = 'right';
+      for (let km = 0; km <= maxDisplayAlt; km += 5) {
+        const ly = barY + barH - (km / maxDisplayAlt) * barH;
+        ctx.fillText(km + 'km', barX - 8, ly + 3);
+        ctx.fillRect(barX - 3, ly, 3, 1);
+      }
+    }
+
+    function ctxClosedPathWithFlame(ctx, w, h) {
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Render flame inner core glow directly if engine is actively ignited and throttle > 0
+      if (AppState.flight.isEngineIgnited && AppState.flight.thrustThrottle > 0) {
+        ctx.fillStyle = '#ffea00';
+        ctx.beginPath();
+        const fSize = (AppState.flight.thrustThrottle / 100) * h * 0.45;
+        ctx.moveTo(-w/4, h/2);
+        ctx.lineTo(w/4, h/2);
+        ctx.lineTo(0, h/2 + fSize);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    function drawParallaxStars(ctx) {
+      if (!podBody) return;
+      const cx = podBody.position.x * 0.92;
+      const cy = podBody.position.y * 0.92;
+
+      ctx.fillStyle = '#ffffff';
+      let seed = 77777;
+      function random() {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      }
+
+      ctx.save();
+      const starScale = cameraMode === 'PILOT' ? 1.0 : 6.0;
+      for (let i = 0; i < 70; i++) {
+        const sx = cx + (random() - 0.5) * 15000;
+        const sy = cy + (random() - 0.5) * 15000;
+        ctx.beginPath();
+        ctx.arc(sx, sy, random() * 4 * starScale + 1, 0, Math.PI*2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawEarth(ctx) {
+      const grad = ctx.createRadialGradient(
+        CELESTIAL.Earth.x, CELESTIAL.Earth.y, CELESTIAL.Earth.r,
+        CELESTIAL.Earth.x, CELESTIAL.Earth.y, CELESTIAL.Earth.r + 250
+      );
+      grad.addColorStop(0, 'rgba(0, 162, 255, 0.45)');
+      grad.addColorStop(0.3, 'rgba(0, 102, 255, 0.15)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(CELESTIAL.Earth.x, CELESTIAL.Earth.y, CELESTIAL.Earth.r + 250, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#0062c3';
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = cameraMode === 'PILOT' ? 5 : 25;
+      ctx.beginPath();
+      ctx.arc(CELESTIAL.Earth.x, CELESTIAL.Earth.y, CELESTIAL.Earth.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#00a86b';
+      let seed = 444;
+      function random() {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      }
+      for (let i = 0; i < 10; i++) {
+        const angle = random() * Math.PI * 2;
+        const ex = CELESTIAL.Earth.x + Math.cos(angle) * (CELESTIAL.Earth.r - 250);
+        const ey = CELESTIAL.Earth.y + Math.sin(angle) * (CELESTIAL.Earth.r - 250);
+        ctx.beginPath();
+        ctx.arc(ex, ey, random() * 350 + 200, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawMoon(ctx) {
+      const grad = ctx.createRadialGradient(
+        CELESTIAL.Moon.x, CELESTIAL.Moon.y, CELESTIAL.Moon.r,
+        CELESTIAL.Moon.x, CELESTIAL.Moon.y, CELESTIAL.Moon.r + 60
+      );
+      grad.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(CELESTIAL.Moon.x, CELESTIAL.Moon.y, CELESTIAL.Moon.r + 60, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#475569';
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = cameraMode === 'PILOT' ? 4 : 20;
+      ctx.beginPath();
+      ctx.arc(CELESTIAL.Moon.x, CELESTIAL.Moon.y, CELESTIAL.Moon.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#334155';
+      let seed = 555;
+      function random() {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      }
+      for (let i = 0; i < 8; i++) {
+        const angle = random() * Math.PI * 2;
+        const mx = CELESTIAL.Moon.x + Math.cos(angle) * (CELESTIAL.Moon.r - 50);
+        const my = CELESTIAL.Moon.y + Math.sin(angle) * (CELESTIAL.Moon.r - 50);
+        ctx.beginPath();
+        ctx.arc(mx, my, random() * 45 + 20, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    function drawOrbitAltLabels(ctx) {
+      if (orbitPoints.length < 10) return;
+
+      let maxDist = -999, minDist = 999;
+      let apoPt = null, periPt = null;
+
+      orbitPoints.forEach(pt => {
+        const dx = pt.x - CELESTIAL.Earth.x;
+        const dy = pt.y - CELESTIAL.Earth.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist > maxDist) {
+          maxDist = dist;
+          apoPt = pt;
+        }
+        if (dist < minDist) {
+          minDist = dist;
+          periPt = pt;
+        }
+      });
+
+      const apoAlt = (maxDist - CELESTIAL.Earth.r) * 10 / 1000;
+      const periAlt = (minDist - CELESTIAL.Earth.r) * 10 / 1000;
+
+      ctx.fillStyle = '#00f0ff';
+      ctx.font = 'bold 150px Outfit';
+      ctx.textAlign = 'center';
+
+      if (apoPt && apoAlt > 5) {
+        ctx.fillText(`APOAPSIS: ${apoAlt.toFixed(1)} km`, apoPt.x, apoPt.y - 200);
+        ctx.beginPath();
+        ctx.arc(apoPt.x, apoPt.y, 50, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      if (periPt && periAlt > 0) {
+        const periText = periAlt > 0 ? `PERIAPSIS: ${periAlt.toFixed(1)} km` : `SUB-ORBITAL IMPACT`;
+        ctx.fillStyle = periAlt > 0 ? '#00f0ff' : '#ff3838';
+        ctx.fillText(periText, periPt.x, periPt.y + 250);
+        ctx.beginPath();
+        ctx.arc(periPt.x, periPt.y, 50, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    function renderParticles(ctx) {
+      flightParticles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    // TERMINATION
+    function abortFlight() {
+      endFlightMission('ABORTED');
+    }
+
+    function endFlightMission(reason) {
+      AppState.flight.isEnded = true;
+      AppState.flight.endReason = reason;
+
+      if (physicsEngine) {
+        Matter.Composite.clear(physicsWorld, false);
+        Matter.Engine.clear(physicsEngine);
+      }
+
+      const recordTitle = document.getElementById('record-title');
+      const recordDesc = document.getElementById('record-desc');
+      const finalAlt = document.getElementById('record-final-altitude');
+      const icon = document.getElementById('record-achievement-icon');
+
+      finalAlt.textContent = AppState.flight.maxAltitude.toFixed(2) + ' km';
+
+      if (reason === 'CRASHED_EARTH') {
+        icon.innerHTML = '<i class="fa-solid fa-burst"></i>';
+        icon.style.color = '#ff3838';
+        recordTitle.textContent = '지구 충돌 참사';
+        recordDesc.textContent = '우주선이 비정상적으로 빠른 속도로 지구 표면에 추락했습니다.';
+      } else if (reason === 'CRASHED_MOON') {
+        icon.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i>';
+        icon.style.color = '#ff3838';
+        recordTitle.textContent = '달 크레이터 충돌';
+        recordDesc.textContent = '달 표면에 제어되지 않은 속도로 충돌하며 소멸되었습니다.';
+      } else if (reason === 'LANDED_EARTH') {
+        icon.innerHTML = '<i class="fa-solid fa-house-chimney-user"></i>';
+        icon.style.color = '#00f0ff';
+        recordTitle.textContent = '지구 연착륙 성공';
+        recordDesc.textContent = '감속에 성공하여 지구 표면에 안전하게 착륙하였습니다.';
+      } else if (reason === 'LANDED_MOON') {
+        icon.innerHTML = '<i class="fa-solid fa-flag"></i>';
+        icon.style.color = '#ff6b00';
+        recordTitle.textContent = '달 착륙 위업 완수';
+        recordDesc.textContent = '달 중력장에 진입 후 부드럽게 감속하여 달 표면에 착륙했습니다!';
+      } else {
+        icon.innerHTML = '<i class="fa-solid fa-flag-checkered"></i>';
+        icon.style.color = 'var(--text-muted)';
+        recordTitle.textContent = '임무 수동 종료';
+        recordDesc.textContent = '조종사가 임무 비행을 임의 중단하고 기지로 복귀했습니다.';
+      }
+
+      document.getElementById('record-modal').classList.add('active');
+    }
+
+    document.getElementById('btn-cancel-record').addEventListener('click', () => {
+      closeRecordModalAndExit();
+    });
+
+    document.getElementById('btn-submit-record').addEventListener('click', () => {
+      const nameInput = document.getElementById('pilot-nickname');
+      const nickname = nameInput.value.trim() || 'Pilot';
+
+      AppState.leaderboard.push({
+        nickname: nickname,
+        altitude: AppState.flight.maxAltitude,
+        shipParts: JSON.parse(JSON.stringify(AppState.shipParts)) 
+      });
+
+      saveLeaderboard();
+      renderLeaderboardUI();
+      closeRecordModalAndExit();
+    });
+
+    function closeRecordModalAndExit() {
+      document.getElementById('record-modal').classList.remove('active');
+      document.getElementById('flight-screen').classList.remove('active');
+      document.getElementById('assembly-screen').classList.add('active');
+      AppState.mode = 'ASSEMBLY';
+      
+      selectedPartIndex = -1;
+      drawEditor();
+    }
+
+    document.getElementById('btn-camera-toggle').addEventListener('click', () => {
+      toggleCameraMode();
+    });
+
+    document.getElementById('btn-abort-flight').addEventListener('click', () => {
+      abortFlight();
+    });
+
+    window.addEventListener('load', () => {
+      loadLeaderboard();
+      checkShipViability();
+      drawEditor();
+    });
+
+  </script>
+</body>
+</html>
