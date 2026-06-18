@@ -912,8 +912,8 @@
       <div class="hud-warnings" id="hud-warnings-box">
         <div class="hud-control-info">
           <span><i class="fa-solid fa-keyboard"></i> 자세 제어: A/D 또는 ←/→ (RCS 가스 분사)</span>
-          <span>엔진 출력: W/S 또는 ↑/↓ (마우스 휠 조절)</span>
-          <span style="color:#00f0ff; font-weight:bold;"><i class="fa-solid fa-play"></i> 단 분리 및 점화: Space (점화 후 비행 시작!)</span>
+          <span>엔진 출력 설정: W/S 또는 ↑/↓ (Z: 100% / X: 0% 즉시 설정, 마우스 휠 조작)</span>
+          <span style="color:#00f0ff; font-weight:bold;"><i class="fa-solid fa-play"></i> 단 분리 및 점화: Space (설정된 출력으로 점화 및 단계 분리!)</span>
         </div>
       </div>
 
@@ -974,6 +974,11 @@
           <span>최고 도달 고도:</span>
           <span class="stat-val" id="blueprint-height" style="font-size: 1.1rem; color:var(--secondary)">0.0 km</span>
         </div>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 5px;">
+        <button class="btn" id="btn-import-blueprint" style="flex-grow: 1;">
+          <i class="fa-solid fa-file-import"></i> 이 설계도로 조립하기
+        </button>
       </div>
     </div>
   </div>
@@ -1054,7 +1059,7 @@
         minW: 1, maxW: 3,
         minH: 1, maxH: 2,
         massPerGrid: 2.0,
-        thrustPerCol: 0.08, 
+        thrustPerCol: 2.5, // TWR > 1 보장하면서 속도 과다 아닌 적정값
         color: '#334155',
         name: '로켓 엔진'
       },
@@ -1717,17 +1722,17 @@
         totalMass += def.massPerGrid * area;
 
         if (p.type === 'engine') {
-          totalThrust += p.gridW * 30.0; 
+          totalThrust += PARTS_CATALOG.engine.thrustPerCol * p.gridW;
         }
         if (p.type === 'pod') {
           hasPod = true;
         }
       });
 
-      const twr = totalMass > 0 ? (totalThrust / (totalMass * 9.8)) : 0;
+      const twr = totalMass > 0 ? (totalThrust / (totalMass * 0.375)) : 0;
 
       document.getElementById('stat-mass').textContent = totalMass.toFixed(1) + ' t';
-      document.getElementById('stat-thrust').textContent = totalThrust.toFixed(1) + ' kN';
+      document.getElementById('stat-thrust').textContent = totalThrust.toFixed(1) + ' kN (게임)';
       document.getElementById('stat-twr').textContent = twr.toFixed(2);
 
       const statusEl = document.getElementById('stat-connected');
@@ -1797,8 +1802,11 @@
     // -------------------------------------------------------------
     // BLUEPRINT CANVAS DRAW SYSTEM (POPUP)
     // -------------------------------------------------------------
+    let blueprintShipParts = [];
+
     function showBlueprintModal(nickname, altitude, parts) {
       if (!parts || parts.length === 0) return;
+      blueprintShipParts = parts;
       
       document.getElementById('blueprint-designer').textContent = nickname;
       document.getElementById('blueprint-height').textContent = altitude.toFixed(1) + ' km';
@@ -1844,6 +1852,17 @@
       document.getElementById('blueprint-modal').classList.remove('active');
     });
 
+    document.getElementById('btn-import-blueprint').addEventListener('click', () => {
+      if (blueprintShipParts && blueprintShipParts.length > 0) {
+        AppState.shipParts = JSON.parse(JSON.stringify(blueprintShipParts));
+        selectedPartIndex = -1;
+        checkShipViability();
+        drawEditor();
+        document.getElementById('blueprint-modal').classList.remove('active');
+        alert('우주선 설계 청사진을 성공적으로 편집기로 불러왔습니다!');
+      }
+    });
+
 
     // -------------------------------------------------------------
     // FLIGHT PHYSICS SIMULATION ENGINE
@@ -1857,7 +1876,7 @@
     let orbitPoints = [];
 
     const CELESTIAL = {
-      G: 0.15, 
+      G: 0.06, // 중력 대폭 감소 → 이륙 쉬움
       Earth: {
         x: 0,
         y: 0,
@@ -1889,16 +1908,16 @@
       document.getElementById('assembly-screen').classList.remove('active');
       document.getElementById('flight-screen').classList.add('active');
       
-      AppState.flight.thrustThrottle = 0;
+      AppState.flight.thrustThrottle = 100; // 발사 시 스로틀 100% 자동 설정
       AppState.flight.maxAltitude = 0;
       AppState.flight.isEnded = false;
-      AppState.flight.hasLeftGround = false; // Reset flight takeoff flag
-      AppState.flight.isEngineIgnited = false; // Engines cold initially
+      AppState.flight.hasLeftGround = false;
+      AppState.flight.isEngineIgnited = false;
       AppState.flight.startDistE = 0;
 
-      document.getElementById('throttle-range').value = 0;
-      document.getElementById('throttle-bar').style.height = '0%';
-      document.getElementById('throttle-text').textContent = '0%';
+      document.getElementById('throttle-range').value = 100;
+      document.getElementById('throttle-bar').style.height = '100%';
+      document.getElementById('throttle-text').textContent = '100%';
 
       initFlightPhysics();
       resizeFlightCanvas();
@@ -1943,18 +1962,23 @@
 
         const body = Matter.Bodies.rectangle(worldX, worldY, w, h, {
           density: 0.001,
-          frictionAir: 0.00005,
+          frictionAir: 0.008,   // 우주 감속용
+          friction: 0,          // 발사대 마찰 제거 → 뒤집힘 방지
+          frictionStatic: 0,    // 정적 마찰 제거
+          restitution: 0,       // 탄성 제거 (튕김 없음)
           angle: (part.angle * Math.PI) / 180,
-          isStatic: true // Hold rocket on launchpad until engine ignition
+          isStatic: true
         });
-
         const gridArea = part.gridW * part.gridH;
         const mass = def.massPerGrid * gridArea;
         const dryMass = def.dryMassPerGrid ? (def.dryMassPerGrid * gridArea) : mass;
         const fuel = def.maxFuelPerGrid ? (def.maxFuelPerGrid * gridArea) : 0;
         const thrust = def.thrustPerCol ? (def.thrustPerCol * part.gridW) : 0;
 
+        // mass 설정 (isStatic 해제 전에 적용)
         Matter.Body.setMass(body, mass);
+        // setInertia(Infinity)는 ignition 시 setStatic(false) 직후에 적용
+        // → static body에 적용하면 해제 시 Matter.js가 덮어써서 무효화됨
 
         bodyLookup[part.id] = body;
         Matter.Composite.add(physicsWorld, body);
@@ -2044,8 +2068,9 @@
               bodyB: bodyB,
               pointA: { x: ox, y: oy },
               pointB: { x: ox, y: oy },
+              length: 0,        // 간격 0 → 완전 밀착 고정
               stiffness: 1.0,
-              damping: 0.1
+              damping: 0.2
             });
 
             const c2 = Matter.Constraint.create({
@@ -2053,8 +2078,9 @@
               bodyB: bodyB,
               pointA: { x: -ox, y: -oy },
               pointB: { x: -ox, y: -oy },
+              length: 0,
               stiffness: 1.0,
-              damping: 0.1
+              damping: 0.2
             });
 
             Matter.Composite.add(physicsWorld, [c1, c2]);
@@ -2067,11 +2093,24 @@
         }
       }
 
-      // Initial Earth Body placement (Static)
+      // Initial Earth Body placement (Static) — 마찰 제거로 발사 시 걸림 방지
       const earthBody = Matter.Bodies.circle(CELESTIAL.Earth.x, CELESTIAL.Earth.y, CELESTIAL.Earth.r, {
-        isStatic: true
+        isStatic: true,
+        friction: 0,
+        frictionStatic: 0,
+        restitution: 0
       });
-      Matter.Composite.add(physicsWorld, earthBody);
+      
+      // 발사대: 마찰 완전 제거
+      const launchpadBody = Matter.Bodies.rectangle(
+        0, 
+        CELESTIAL.Earth.y - CELESTIAL.Earth.r - LAUNCH_HEIGHT_OFFSET / 2, 
+        240, 
+        LAUNCH_HEIGHT_OFFSET, 
+        { isStatic: true, friction: 0, frictionStatic: 0, restitution: 0 }
+      );
+      
+      Matter.Composite.add(physicsWorld, [earthBody, launchpadBody]);
 
       if (podBody) {
         AppState.flight.startDistE = Math.sqrt(
@@ -2102,6 +2141,12 @@
       if (AppState.mode === 'FLIGHT') {
         if (e.key.toLowerCase() === 'm') {
           toggleCameraMode();
+        }
+        if (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'ㅋ') {
+          adjustThrottle(100);
+        }
+        if (e.key.toLowerCase() === 'x' || e.key.toLowerCase() === 'ㅌ') {
+          adjustThrottle(-100);
         }
         if (e.key === ' ') { 
           e.preventDefault();
@@ -2168,24 +2213,31 @@
       }
 
       const activeStage = stageSequence[currentStagePtr];
+
+      // ── 안전장치: 이륙 전(땅 위)에서는 DECOUPLE 스킵 ──────────────────
+      // 스페이스바 연타 시 점화 전 단 분리로 엔진이 떨어지는 것을 방지
+      if (activeStage.type === 'DECOUPLE' && !AppState.flight.hasLeftGround) {
+        showTemporaryWarning('⚠ 이륙 후 단 분리 가능합니다!');
+        return; // currentStagePtr 증가 없이 리턴 → 같은 스테이지 유지
+      }
+
       currentStagePtr++;
       updateStagingHUD();
 
       if (activeStage.type === 'IGNITION') {
         AppState.flight.isEngineIgnited = true;
-        showTemporaryWarning('ENGINES IGNITED! 점화 시작!');
-        
-        // Release all bodies from static hold (launchpad release)
+        // 점화 즉시 isStatic 해제 + velocity 0 초기화
         flightParts.forEach(p => {
           Matter.Body.setStatic(p.body, false);
+          Matter.Body.setVelocity(p.body, { x: 0, y: 0 });
+          // static 해제 후에 inertia=Infinity 적용해야 올바르게 동작
+          Matter.Body.setInertia(p.body, Infinity);
         });
-        
-        // Auto set throttle to 100% to lift off immediately for better control UX
-        adjustThrottle(100);
+        showTemporaryWarning(`🚀 ENGINES IGNITED! 점화 시작! (출력: ${AppState.flight.thrustThrottle}%)`);
       } 
       else if (activeStage.type === 'DECOUPLE') {
         const activeSep = activeStage.target;
-        showTemporaryWarning('STAGE DECOUPLED! 단 분리!');
+        showTemporaryWarning('💥 STAGE DECOUPLED! 단 분리!');
 
         const constraintsToSever = spaceSeparatorConstraints.filter(c => c.sepId === activeSep.id);
         constraintsToSever.forEach(sc => {
@@ -2291,6 +2343,11 @@
       if (totalAvailableFuel <= 0) return;
 
       const throttleRatio = AppState.flight.thrustThrottle / 100;
+
+      // Physics launchpad body provides ground support naturally.
+      // Thrust is applied regardless — at low throttle, launchpad normal force prevents sinking.
+      // At high throttle, net upward force lifts off smoothly.
+
       const fuelConsumptionPerEngine = 0.05 * throttleRatio;
 
       let neededFuel = fuelConsumptionPerEngine * activeEngines.length;
@@ -2338,7 +2395,13 @@
       let leftRot = keysPressed['a'] || keysPressed['ㅁ'] || keysPressed['arrowleft'] || keysPressed['ArrowLeft'];
       let rightRot = keysPressed['d'] || keysPressed['ㅇ'] || keysPressed['arrowright'] || keysPressed['ArrowRight'];
 
-      if (!leftRot && !rightRot) return;
+      if (!leftRot && !rightRot) {
+        // SAS (자세 유지 보조 장치) 구현: 조작하지 않을 때 각속도를 감쇄시켜 로켓이 돌지 않게 차분히 유지함
+        if (podBody && Math.abs(podBody.angularVelocity) > 0.0001) {
+          Matter.Body.setAngularVelocity(podBody, podBody.angularVelocity * 0.90);
+        }
+        return;
+      }
 
       const rotDirection = leftRot ? -1 : 1; 
 
@@ -2536,10 +2599,35 @@
 
       Matter.Engine.update(physicsEngine, Math.min(dt, 30));
 
-      // Only apply gravity after engine ignition (rocket sits on launchpad before that)
-      if (AppState.flight.isEngineIgnited) {
-        applyGravity(flightParts);
+      // ── 회전 강제 잠금: 매 프레임 angle=0, angularVelocity=0 고정 ──────────
+      // A/D 키를 누른 경우에만 RCS가 각속도를 부여하므로,
+      // 그 외의 모든 외력(충돌·제약)에 의한 회전을 완전히 차단한다.
+      const isRotating = keysPressed['a'] || keysPressed['ㅁ'] || keysPressed['arrowleft'] || keysPressed['ArrowLeft']
+                      || keysPressed['d'] || keysPressed['ㅇ'] || keysPressed['arrowright'] || keysPressed['ArrowRight'];
+      if (!isRotating && AppState.flight.isEngineIgnited) {
+        flightParts.forEach(p => {
+          if (!p.body.isStatic) {
+            Matter.Body.setAngle(p.body, 0);
+            Matter.Body.setAngularVelocity(p.body, 0);
+          }
+        });
       }
+
+      // ── 스로틀 0일 때 의사 감속 (우주 무한 슬라이딩 방지) ──────────────────
+      if (AppState.flight.thrustThrottle === 0 && AppState.flight.isEngineIgnited) {
+        flightParts.forEach(p => {
+          if (!p.body.isStatic) {
+            const v = p.body.velocity;
+            Matter.Body.setVelocity(p.body, {
+              x: v.x * 0.97,
+              y: v.y * 0.97
+            });
+          }
+        });
+      }
+
+      // Gravity always active — launchpad body collision handles ground support naturally
+      applyGravity(flightParts);
       applyThrust();
       applyRCS();
       handleKeyboardThrottle();
